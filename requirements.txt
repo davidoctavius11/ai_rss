@@ -1,0 +1,9 @@
+flask
+feedparser
+requests
+python-dotenv
+openai
+trafilatura
+readability-lxml
+beautifulsoup4
+lxml
