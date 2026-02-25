@@ -375,6 +375,7 @@ crontab -e
 - 原生播客内容保持原样（不参与生成）
 - 研究类来源生成**双人对话**，其他为**单人主持**
 - 每日最多 10 条，时长 15–20 分钟（随评分增长）
+- 当前TTS方案：**Inworld TTS 1.5 Mini**（待你注册并配置）
 
 运行：
 ```
@@ -383,4 +384,12 @@ python3 podcast_pipeline.py
 
 输出：
 - 脚本：`output/podcast/scripts/`
-- 播客RSS：`output/podcast/podcast.xml`
+- 播客RSS：`output/podcast/podcast.xml` （对外访问：`https://rss.borntofly.ai/podcast.xml`）
+- 音频：`output/podcast/audio/` （对外访问：`https://rss.borntofly.ai/podcast/audio/<filename>`）
+
+配置（待你注册Inworld后补全）：
+```
+TTS_PROVIDER=inworld
+INWORLD_API_KEY=your_key_here
+INWORLD_TTS_MODEL=tts-1.5-mini
+```
