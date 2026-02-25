@@ -1,0 +1,13 @@
+tunnel: ai-rss-tunnel
+credentials-file: /Users/ioumvp/.cloudflared/08fc81e2-50e6-4218-abb1-40819473d888.json
+
+ingress:
+  - hostname: rss.borntofly.ai
+    service: http://localhost:5006
+    originRequest:
+      connectTimeout: 30s
+      noTLSVerify: false
+      httpHostHeader: rss.borntofly.ai
+
+  # 回退规则，处理其他所有请求
+  - service: http_status:404
