@@ -36,44 +36,7 @@
 
 ## 📚 项目演进史
 
-### 第一阶段：2026.2.12 - 初始搭建
-- 搭建基础RSS抓取框架
-- 首次采集88条新闻，发现arXiv论文过多的问题
-
-### 第二阶段：2026.2.13 上午 - 全文抓取与criteria优化
-- 解决"只看摘要误判"问题，引入多引擎全文抓取
-- 发现国内源被墙，引入本地RSSHub
-- 重写criteria，从"学术审稿"转向"商业科技观察"
-
-### 第三阶段：2026.2.13 下午 - 增量机制与名称对齐
-- **重大坑**：config里的feed_name必须和数据库完全一致，否则AI全给50分
-- 实现增量抓取，避免重复全量采集（省钱、省时）
-- 最终得到44篇平均分28的精选文章
-
-### 第四阶段：2026.2.13 晚上 - 最终定型
-- 隧道地址：`actions-promises-symposium-trailers.trycloudflare.com`
-- 订阅源：`https://{地址}/feed.xml`
-- 发现知乎生活类文章误判，调整知乎criteria
-
-### 第五阶段：2026.2.14 - 最终运营版
-- ✅ **打通 Reeder 连接**：解决 `nsxmlparsererrordomain 错误23`（MIME类型问题）
-- ✅ **新增5个高质量源**：The Verge、少数派、TechCrunch、OneV's Den、Lifehacker
-- ✅ **确定"宁可漏判，不可误杀"原则**：精简"严格排除"项，增加"可以接受"缓冲层
-- ✅ **文章数稳定在100篇**：阈值40分，质量与数量达到平衡
-
-### 第六阶段：2026.2.24 - Cloudflare Tunnel永久域名绑定
-- ✅ **绑定永久域名**：将borntofly.ai域名绑定到5003端口
-- ✅ **创建子域名**：使用rss.borntofly.ai作为永久地址
-- ✅ **替换ngrok**：使用Cloudflare Tunnel替代ngrok，获得永久地址
-- ✅ **免费HTTPS**：自动获得Cloudflare提供的免费SSL证书
-
-### 第七阶段：2026.2.24 晚上 - AI筛选增强版优化
-- ✅ **修复AI筛选理由显示问题**：确保所有文章都有AI筛选理由
-- ✅ **优化文章相关性**：保持60分阈值，增加高质量源补充机制
-- ✅ **增强文章数量**：从42篇增加到50篇（40篇AI筛选 + 10篇高质量源补充）
-- ✅ **改进筛选逻辑**：当AI筛选文章不足50篇时，自动补充TechCrunch等高质量源文章
-- ✅ **添加强制刷新参数**：支持`?refresh=1`参数强制刷新缓存
-- ✅ **修复数据库链接问题**：将http链接更新为https链接，清理垃圾链接
+已整理为单独文件：`PRACTICE_HISTORY.md`
 
 ---
 
@@ -98,66 +61,7 @@
 
 ## 🧭 系统架构图（CTO 视角）
 
-```mermaid
-flowchart LR
-  %% Sources
-  subgraph S[内容源层]
-    S1[外部RSS源<br/>Tech / Research / Architecture]
-    S2[RSSHub / 本地转发]
-  end
-
-  %% Ingestion
-  subgraph I[采集与解析层]
-    I1[fetcher.py<br/>增量抓取]
-    I2[fulltext_fetcher.py<br/>全文提取与清洗]
-  end
-
-  %% Storage
-  subgraph D[数据层]
-    D1[(SQLite: articles)]
-    D2[(SQLite: podcast_episodes)]
-  end
-
-  %% Scoring & Policy
-  subgraph P[评分与策略层]
-    P1[criteria_judge.py<br/>AI评分 + 理由]
-    P2[策略规则<br/>阈值≥50 + 90天时效 + 常青≥80]
-  end
-
-  %% Delivery
-  subgraph R[交付层]
-    R1[app_ai_filtered.py<br/>/feed.xml]
-    R2[Cloudflare Tunnel<br/>rss.borntofly.ai]
-    R3[客户端<br/>Reeder / Feedly]
-  end
-
-  %% Automation
-  subgraph O[自动化与运维层]
-    O1[cron<br/>每周两次]
-    O2[scripts/auto_refresh.sh<br/>抓取→全文→评分→重启]
-  end
-
-  %% Podcast
-  subgraph C[播客扩展层]
-    C1[podcast_pipeline.py<br/>选题/脚本/长度控制]
-    C2[TTS 引擎（计划）<br/>Inworld TTS 1.5 Mini]
-    C3[/podcast.xml]
-  end
-
-  S1 --> I1
-  S2 --> I1
-  I1 --> D1
-  I2 --> D1
-  D1 --> P1 --> P2
-  P2 --> R1 --> R2 --> R3
-  O1 --> O2 --> I1
-  O2 --> I2
-  O2 --> P1
-  O2 --> R1
-  D1 --> C1 --> D2
-  C1 --> C2 --> C3
-end
-```
+已整理为单独文件：`ARCHITECTURE.md`
 
 ---
 
