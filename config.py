@@ -203,6 +203,71 @@ RSS_FEEDS = [
         严格排除：纯学术论文翻译。"""
     },
 
+    # ========== 新增：系统架构能力 ==========
+    {
+        "name": "Martin Fowler (Bliki)",
+        "url": "https://martinfowler.com/feed.atom",
+        "enabled": True,
+        "priority": "high",
+        "criteria": """系统架构心智模型、设计权衡、重构与演进、架构模式与组织协作。
+        重点关注：架构决策记录、演进式架构、微服务/DDD/事件驱动。
+        严格排除：与架构无关的随笔。"""
+    },
+    {
+        "name": "AWS Architecture Blog",
+        "url": "https://aws.amazon.com/blogs/architecture/feed/",
+        "enabled": True,
+        "priority": "high",
+        "criteria": """真实架构案例、系统可靠性、可扩展性、成本与性能权衡。
+        重点关注：架构迁移、事件驱动、弹性与容灾。
+        严格排除：纯产品推广或无技术细节的通稿。"""
+    },
+    {
+        "name": "InfoQ Architecture (All)",
+        "url": "https://feed.infoq.com/architecture/",
+        "enabled": True,
+        "priority": "high",
+        "criteria": """系统设计、工程实践、架构决策与组织影响。
+        重点关注：可观测性、分布式系统、架构治理。
+        严格排除：无架构视角的泛技术新闻。"""
+    },
+    {
+        "name": "InfoQ Architecture Articles",
+        "url": "https://feed.infoq.com/architecture/articles/",
+        "enabled": True,
+        "priority": "high",
+        "criteria": """深度架构文章与案例分析。
+        重点关注：架构模式、演进路径、技术债处理。
+        严格排除：浅层资讯。"""
+    },
+    {
+        "name": "InfoQ Architecture News",
+        "url": "https://feed.infoq.com/architecture/news/",
+        "enabled": True,
+        "priority": "medium",
+        "criteria": """架构相关业界动态与案例。
+        重点关注：大型系统与基础设施变革。
+        严格排除：无架构价值的短讯。"""
+    },
+    {
+        "name": "Cloudflare Changelog (Global)",
+        "url": "https://developers.cloudflare.com/changelog/rss/index.xml",
+        "enabled": True,
+        "priority": "medium",
+        "criteria": """基础设施平台与网络能力演进。
+        重点关注：边缘计算、网络性能、安全与可用性。
+        严格排除：与系统架构无关的细碎更新。"""
+    },
+    {
+        "name": "Cloudflare Changelog (Developer Platform)",
+        "url": "https://developers.cloudflare.com/changelog/rss/developer-platform.xml",
+        "enabled": True,
+        "priority": "medium",
+        "criteria": """平台工程、边缘计算、开发者平台能力演进。
+        重点关注：架构能力变化对系统设计的影响。
+        严格排除：无架构意义的小改动。"""
+    },
+
     # ========== 新增：产业AI/基础设施/生产力/数据科学 ==========
     {
         "name": "AWS Machine Learning Blog",

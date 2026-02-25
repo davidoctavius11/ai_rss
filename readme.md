@@ -349,3 +349,38 @@ ingress:
 2. [ ] 运行全文抓取：`python fetcher.py --fulltext`
 3. [ ] 运行AI评分：`python criteria_judge.py`
 4. [ ] 重启AI筛选服务：`pkill -f "python3 app_ai_filtered.py" && cd ~/ai_rss
+
+---
+
+## ⏱️ 自动更新（每周两次）
+
+已提供脚本：`scripts/auto_refresh.sh`  
+建议时间（本地时区）：**周二 & 周五 08:10**
+
+设置 cron：
+```
+crontab -e
+```
+添加：
+```
+10 8 * * 2,5 /Users/ioumvp/ai_rss/scripts/auto_refresh.sh >> /Users/ioumvp/ai_rss/auto_refresh.log 2>&1
+```
+
+---
+
+## 🎙️ 播客生成（中文）
+
+说明：
+- 仅对**非原生播客**内容生成中文播客脚本
+- 原生播客内容保持原样（不参与生成）
+- 研究类来源生成**双人对话**，其他为**单人主持**
+- 每日最多 10 条，时长 15–20 分钟（随评分增长）
+
+运行：
+```
+python3 podcast_pipeline.py
+```
+
+输出：
+- 脚本：`output/podcast/scripts/`
+- 播客RSS：`output/podcast/podcast.xml`
