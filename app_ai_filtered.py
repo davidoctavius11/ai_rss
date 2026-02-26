@@ -6,23 +6,23 @@ AI筛选RSS聚合服务 - 使用数据库中的AI评分和筛选理由
 import os
 import time
 import sqlite3
-from flask import Flask, Response
+from flask import Flask, Response, send_from_directory
 from datetime import datetime, timezone, timedelta
 import config
 from generator import RSSGenerator
 
 app = Flask(__name__)
 
-CACHE_DURATION = 30 * 60  # 30分钟缓存
+CACHE_DURATION = 0  # 禁用缓存，始终生成最新RSS
 cache = {"feed_xml": None, "timestamp": 0, "article_count": 0}
 
 # Timeliness policy
 RECENCY_DAYS = 90
 EVERGREEN_SCORE = 80
 FILTER_THRESHOLD = 50
-MAX_FETCH = 500  # fetch more then filter for recency/evergreen
+MAX_FETCH = 2000  # fetch more then filter for recency/evergreen
 
-def get_ai_filtered_articles(threshold=FILTER_THRESHOLD, limit=100):
+def get_ai_filtered_articles(threshold=FILTER_THRESHOLD, limit=None):
     """
     从数据库获取经过AI筛选的文章
     threshold: 最低分数阈值（默认60分）
@@ -49,7 +49,7 @@ def get_ai_filtered_articles(threshold=FILTER_THRESHOLD, limit=100):
         WHERE criteria_score >= ?
         AND criteria_reason IS NOT NULL
         AND criteria_reason != ''
-        ORDER BY criteria_score DESC, published_date DESC 
+        ORDER BY published_date DESC, criteria_score DESC 
         LIMIT ?
     ''', (threshold, MAX_FETCH))
     
@@ -69,7 +69,31 @@ def get_ai_filtered_articles(threshold=FILTER_THRESHOLD, limit=100):
     # 3. Sort by recency, then score (so RSS shows latest first)
     filtered.sort(key=lambda x: (x['published'], x['score']), reverse=True)
 
-    articles.extend(filtered[:limit])
+    if limit is None:
+        articles.extend(filtered)
+    else:
+    # attach multi-perspective summaries if available
+    if filtered:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        c2 = conn.cursor()
+        links = [a['link'] for a in filtered]
+        placeholders = ",".join(["?"] * len(links))
+        c2.execute(f'''
+            SELECT article_link, summary
+            FROM multi_perspectives
+            WHERE article_link IN ({placeholders})
+        ''', links)
+        mp_map = {r['article_link']: r['summary'] for r in c2.fetchall()}
+        conn.close()
+        for a in filtered:
+            if a['link'] in mp_map:
+                a['multi_perspective'] = mp_map[a['link']]
+
+    if limit is None:
+        articles.extend(filtered)
+    else:
+        articles.extend(filtered[:limit])
     
     conn.close()
     return articles
@@ -119,6 +143,7 @@ def get_scoring_stats():
     """获取评分统计信息"""
     db_path = os.path.join(os.path.dirname(__file__), 'data', 'ai_rss.db')
     conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
     c = conn.cursor()
     
     # 总体统计
@@ -155,6 +180,30 @@ def get_scoring_stats():
             'avg_score': row[2],
             'kept': row[3]
         })
+
+    # 计算进入RSS的有效文章数（时效 + 常青）
+    c.execute('''
+        SELECT 
+            article_title, 
+            article_link, 
+            published_date, 
+            raw_content,
+            criteria_score,
+            criteria_reason,
+            feed_name
+        FROM articles
+        WHERE criteria_score >= ?
+        AND criteria_reason IS NOT NULL
+        AND criteria_reason != ''
+        ORDER BY published_date DESC, criteria_score DESC
+        LIMIT ?
+    ''', (FILTER_THRESHOLD, MAX_FETCH))
+    cutoff = datetime.now(timezone.utc) - timedelta(days=RECENCY_DAYS)
+    eligible = 0
+    for row in c.fetchall():
+        a = _row_to_article(row)
+        if a['score'] >= EVERGREEN_SCORE or a['published'] >= cutoff:
+            eligible += 1
     
     conn.close()
     
@@ -165,7 +214,8 @@ def get_scoring_stats():
         'kept_articles': kept,
         'rejected_articles': rejected,
         'scoring_rate': scored / total * 100 if total > 0 else 0,
-        'feed_stats': feed_stats
+        'feed_stats': feed_stats,
+        'eligible_articles': eligible
     }
 
 @app.route('/')
@@ -198,8 +248,10 @@ def home():
             <p>📰 总文章数: {stats['total_articles']} 篇</p>
             <p>🎯 已评分文章: {stats['scored_articles']} 篇 ({stats['scoring_rate']:.1f}%)</p>
             <p>📈 平均评分: {stats['avg_score']:.1f} 分</p>
-        <p>✅ 保留文章: {stats['kept_articles']} 篇 (≥{FILTER_THRESHOLD}分)</p>
-        <p>❌ 淘汰文章: {stats['rejected_articles']} 篇 (<{FILTER_THRESHOLD}分)</p>
+            <p>✅ 保留文章: {stats['kept_articles']} 篇 (≥{FILTER_THRESHOLD}分)</p>
+            <p>❌ 淘汰文章: {stats['rejected_articles']} 篇 (<{FILTER_THRESHOLD}分)</p>
+            <p>🧭 进入RSS: {stats['eligible_articles']} 篇 (≤{RECENCY_DAYS}天 或 ≥{EVERGREEN_SCORE}分)</p>
+            <p>📤 RSS输出: {cache['article_count']} 篇 (无上限)</p>
         </div>
         
         <div class="feed-list">
@@ -222,7 +274,7 @@ def get_feed_content(force_refresh=False):
         print(f"\n🔄 [{datetime.now().strftime('%H:%M:%S')}] 从数据库获取增强版文章列表...")
         
         # 获取增强版文章
-        articles = get_ai_filtered_articles(threshold=FILTER_THRESHOLD, limit=100)
+        articles = get_ai_filtered_articles(threshold=FILTER_THRESHOLD, limit=None)
         
         if articles and len(articles) > 0:
             # 统计文章类型
@@ -258,14 +310,27 @@ def get_feed_content(force_refresh=False):
 @app.route('/feed')
 def feed_route():
     from flask import request
-    force_refresh = request.args.get('refresh') == '1'
-    return Response(get_feed_content(force_refresh=force_refresh), mimetype='application/rss+xml')
+    # Always refresh on /feed to avoid stale caches in RSS apps
+    return Response(get_feed_content(force_refresh=True), mimetype='application/rss+xml')
 
 @app.route('/feed.xml')
 def feed_xml_route():
     from flask import request
-    force_refresh = request.args.get('refresh') == '1'
-    return Response(get_feed_content(force_refresh=force_refresh), mimetype='application/rss+xml')
+    # Always refresh on /feed.xml to avoid stale caches in RSS apps
+    return Response(get_feed_content(force_refresh=True), mimetype='application/rss+xml')
+
+@app.route('/podcast.xml')
+def podcast_feed():
+    podcast_path = os.path.join(os.path.dirname(__file__), 'output', 'podcast', 'podcast.xml')
+    if not os.path.exists(podcast_path):
+        return Response("", mimetype='application/rss+xml')
+    with open(podcast_path, 'r', encoding='utf-8') as f:
+        return Response(f.read(), mimetype='application/rss+xml')
+
+@app.route('/podcast/audio/<path:filename>')
+def podcast_audio(filename):
+    audio_dir = os.path.join(os.path.dirname(__file__), 'output', 'podcast', 'audio')
+    return send_from_directory(audio_dir, filename, as_attachment=False)
 
 @app.route('/debug')
 def debug():

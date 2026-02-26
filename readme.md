@@ -99,6 +99,24 @@ INWORLD_TTS_MODEL=tts-1.5-mini
 
 ---
 
+## 🧠 多视角聚合（CTO/CEO视角）
+
+已集成多视角聚合脚本：`multi_perspective.py`  
+作用：对业务/架构类内容进行聚类总结，并生成“战略/技术/风险 + 延伸阅读方向”。
+
+触发方式：
+```
+python3 multi_perspective.py
+```
+
+说明：
+- 仅对特定业务/架构来源启用（如 TechCrunch / 36氪 / InfoQ / The Verge / AWS / Cloudflare）
+- 聚类窗口：最近 30 天（从全量文章池中匹配）
+- 每次最多生成 10 条摘要
+
+
+---
+
 ## 🛠 运维常用命令
 
 重启服务：
@@ -127,4 +145,3 @@ python3 check_all_feeds.py
 - `criteria_judge.py`：AI 评分
 - `app_ai_filtered.py`：RSS 服务
 - `podcast_pipeline.py`：播客脚本管线
-

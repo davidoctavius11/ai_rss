@@ -41,7 +41,9 @@ class RSSGenerator:
             
             ai_reason = article.get('ai_reason', '无筛选理由')
             summary = article.get('summary', '')[:500]
-            enhanced_summary = f"🤖 AI筛选理由：{ai_reason}\n\n📰 原文摘要：{summary}"
+            mp = article.get('multi_perspective', '')
+            mp_block = f"\n\n🧠 多视角总结：\n{mp}" if mp else ""
+            enhanced_summary = f"🤖 AI筛选理由：{ai_reason}\n\n📰 原文摘要：{summary}{mp_block}"
             fe.description(enhanced_summary)
             fe.guid(article.get('link', str(hash(article['title']))), permalink=True)
             fe.author(name=article.get('source', '未知来源'))
@@ -69,7 +71,9 @@ class RSSGenerator:
             
             ai_reason = article.get('ai_reason', '无筛选理由')
             summary = article.get('summary', '')[:500]
-            enhanced_summary = f"🤖 AI筛选理由：{ai_reason}\n\n📰 原文摘要：{summary}"
+            mp = article.get('multi_perspective', '')
+            mp_block = f"\n\n🧠 多视角总结：\n{mp}" if mp else ""
+            enhanced_summary = f"🤖 AI筛选理由：{ai_reason}\n\n📰 原文摘要：{summary}{mp_block}"
             fe.description(enhanced_summary)
             fe.guid(article.get('link', str(hash(article['title']))), permalink=True)
             fe.author(name=article.get('source', '未知来源'))
