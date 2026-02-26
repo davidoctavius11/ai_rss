@@ -33,7 +33,7 @@ class RSSGenerator:
         for article in articles:
             fe = fg.add_entry()
             fe.title(article['title'])
-            fe.link(href=article.get('link', ''))
+            fe.link(href=article.get('internal_link', article.get('link', '')))
             
             # 处理发布时间，确保有时区
             pub_date = self._ensure_timezone(article.get('published'))
@@ -63,7 +63,7 @@ class RSSGenerator:
         for article in articles:
             fe = fg.add_entry()
             fe.title(article['title'])
-            fe.link(href=article.get('link', ''))
+            fe.link(href=article.get('internal_link', article.get('link', '')))
             
             # 处理发布时间，确保有时区
             pub_date = self._ensure_timezone(article.get('published'))

@@ -38,6 +38,7 @@ def get_ai_filtered_articles(threshold=FILTER_THRESHOLD, limit=None):
     # 1. 获取评分≥threshold的文章（先多取，后按时效/常青过滤）
     c.execute('''
         SELECT 
+            id,
             article_title, 
             article_link, 
             published_date, 
@@ -56,6 +57,7 @@ def get_ai_filtered_articles(threshold=FILTER_THRESHOLD, limit=None):
     scored_articles = []
     for row in c.fetchall():
         article = _row_to_article(row)
+        article['id'] = row['id']
         scored_articles.append(article)
     
     # 2. Timeliness filter: keep recent items (<= RECENCY_DAYS)
@@ -69,9 +71,6 @@ def get_ai_filtered_articles(threshold=FILTER_THRESHOLD, limit=None):
     # 3. Sort by recency, then score (so RSS shows latest first)
     filtered.sort(key=lambda x: (x['published'], x['score']), reverse=True)
 
-    if limit is None:
-        articles.extend(filtered)
-    else:
     # attach multi-perspective summaries if available
     if filtered:
         conn = sqlite3.connect(db_path)
@@ -89,6 +88,8 @@ def get_ai_filtered_articles(threshold=FILTER_THRESHOLD, limit=None):
         for a in filtered:
             if a['link'] in mp_map:
                 a['multi_perspective'] = mp_map[a['link']]
+            # expose internal summary page
+            a['internal_link'] = f"https://rss.borntofly.ai/item/{a['id']}"
 
     if limit is None:
         articles.extend(filtered)
@@ -318,6 +319,63 @@ def feed_xml_route():
     from flask import request
     # Always refresh on /feed.xml to avoid stale caches in RSS apps
     return Response(get_feed_content(force_refresh=True), mimetype='application/rss+xml')
+
+@app.route('/item/<int:article_id>')
+def item_detail(article_id):
+    db_path = os.path.join(os.path.dirname(__file__), 'data', 'ai_rss.db')
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute('''
+        SELECT id, feed_name, article_title, article_link, published_date, raw_content,
+               criteria_score, criteria_reason
+        FROM articles WHERE id = ?
+    ''', (article_id,))
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        return Response("Not found", status=404)
+
+    # multi-perspective summary (if exists)
+    mp = None
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute('SELECT summary FROM multi_perspectives WHERE article_link = ?', (row['article_link'],))
+        r = c.fetchone()
+        conn.close()
+        if r:
+            mp = r['summary']
+    except Exception:
+        mp = None
+
+    title = row['article_title']
+    source = row['feed_name']
+    link = row['article_link']
+    reason = row['criteria_reason'] or "无筛选理由"
+    score = row['criteria_score']
+    content = row['raw_content'] or ""
+    published = row['published_date']
+
+    mp_block = f"<h3>多视角总结</h3><pre>{mp}</pre>" if mp else ""
+    html = f"""
+    <html>
+    <head><meta charset="utf-8"><title>{title}</title></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; max-width: 760px; margin: 40px auto; line-height: 1.6;">
+      <h1>{title}</h1>
+      <p><b>来源：</b>{source}</p>
+      <p><b>发布时间：</b>{published}</p>
+      <p><b>评分：</b>{score}</p>
+      <p><b>筛选理由：</b>{reason}</p>
+      {mp_block}
+      <h3>摘要</h3>
+      <p>{content}</p>
+      <p><a href="{link}" target="_blank">阅读原文</a></p>
+    </body>
+    </html>
+    """
+    return Response(html, mimetype='text/html')
 
 @app.route('/podcast.xml')
 def podcast_feed():
