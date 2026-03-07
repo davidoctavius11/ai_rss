@@ -3,6 +3,7 @@
 AI筛选RSS聚合服务 - 使用数据库中的AI评分和筛选理由
 """
 
+import json
 import os
 import time
 import sqlite3
@@ -25,7 +26,7 @@ MAX_FETCH = 2000  # fetch more then filter for recency/evergreen
 def get_ai_filtered_articles(threshold=FILTER_THRESHOLD, limit=None):
     """
     从数据库获取经过AI筛选的文章
-    threshold: 最低分数阈值（默认60分）
+    threshold: 最低分数阈值（默认50分）
     limit: 最多返回的文章数量
     """
     db_path = os.path.join(os.path.dirname(__file__), 'data', 'ai_rss.db')
@@ -78,18 +79,61 @@ def get_ai_filtered_articles(threshold=FILTER_THRESHOLD, limit=None):
         c2 = conn.cursor()
         links = [a['link'] for a in filtered]
         placeholders = ",".join(["?"] * len(links))
-        c2.execute(f'''
-            SELECT article_link, summary
-            FROM multi_perspectives
-            WHERE article_link IN ({placeholders})
-        ''', links)
-        mp_map = {r['article_link']: r['summary'] for r in c2.fetchall()}
+        try:
+            c2.execute(f'''
+                SELECT article_link, summary, cluster_json
+                FROM multi_perspectives
+                WHERE article_link IN ({placeholders})
+            ''', links)
+            mp_rows = c2.fetchall()
+        except Exception:
+            c2.execute(f'''
+                SELECT article_link, summary
+                FROM multi_perspectives
+                WHERE article_link IN ({placeholders})
+            ''', links)
+            mp_rows = c2.fetchall()
+        mp_map = {r['article_link']: r for r in mp_rows}
         conn.close()
         for a in filtered:
             if a['link'] in mp_map:
-                a['multi_perspective'] = mp_map[a['link']]
+                r = mp_map[a['link']]
+                a['multi_perspective'] = r['summary']
+                a['cluster_json'] = r['cluster_json'] if 'cluster_json' in r.keys() else None
             # expose internal summary page
             a['internal_link'] = f"https://rss.borntofly.ai/item/{a['id']}"
+
+        # Build reverse map: cluster member link → seed info
+        # so non-seed articles can show a "Part of story" pointer
+        try:
+            mp_conn = sqlite3.connect(db_path)
+            mp_conn.row_factory = sqlite3.Row
+            mp_c = mp_conn.cursor()
+            mp_c.execute('SELECT article_link, article_title, cluster_json FROM multi_perspectives WHERE cluster_json IS NOT NULL')
+            member_map = {}
+            for r in mp_c.fetchall():
+                try:
+                    for item in json.loads(r['cluster_json']):
+                        if item['link'] != r['article_link']:
+                            member_map[item['link']] = {
+                                'seed_link': r['article_link'],
+                                'seed_title': r['article_title'],
+                            }
+                except Exception:
+                    pass
+            mp_conn.close()
+        except Exception:
+            member_map = {}
+
+        for a in filtered:
+            if not a.get('multi_perspective') and a['link'] in member_map:
+                a['cluster_member_of'] = member_map[a['link']]
+
+        # Seeds (with synthesis) float to top; within each group keep recency+score order
+        filtered.sort(
+            key=lambda x: (1 if x.get('multi_perspective') else 0, x['published'], x['score']),
+            reverse=True
+        )
 
     if limit is None:
         articles.extend(filtered)
@@ -166,12 +210,12 @@ def get_scoring_stats():
             feed_name,
             COUNT(*) as total,
             AVG(criteria_score) as avg_score,
-            SUM(CASE WHEN criteria_score >= 60 THEN 1 ELSE 0 END) as kept
+            SUM(CASE WHEN criteria_score >= ? THEN 1 ELSE 0 END) as kept
         FROM articles
         WHERE criteria_score IS NOT NULL
         GROUP BY feed_name
         ORDER BY avg_score DESC
-    ''')
+    ''', (FILTER_THRESHOLD,))
     
     feed_stats = []
     for row in c.fetchall():
@@ -336,19 +380,23 @@ def item_detail(article_id):
     if not row:
         return Response("Not found", status=404)
 
-    # multi-perspective summary (if exists)
+    # multi-perspective summary + cluster (if exists)
     mp = None
+    cluster_items = []
     try:
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
-        c.execute('SELECT summary FROM multi_perspectives WHERE article_link = ?', (row['article_link'],))
+        c.execute('SELECT summary, cluster_json FROM multi_perspectives WHERE article_link = ?', (row['article_link'],))
         r = c.fetchone()
         conn.close()
         if r:
             mp = r['summary']
+            if r['cluster_json']:
+                cluster_items = json.loads(r['cluster_json'])
     except Exception:
         mp = None
+        cluster_items = []
 
     title = row['article_title']
     source = row['feed_name']
@@ -358,11 +406,39 @@ def item_detail(article_id):
     content = row['raw_content'] or ""
     published = row['published_date']
 
-    mp_block = f"<h3>多视角总结</h3><pre>{mp}</pre>" if mp else ""
+    if mp:
+        cluster_html = ""
+        if cluster_items:
+            items_html = "".join(
+                f'<li><a href="{item["link"]}" target="_blank">[{item["source"]}] {item["title"]}</a></li>'
+                for item in cluster_items
+            )
+            cluster_html = f'<h3>📰 本故事综合了 {len(cluster_items)} 篇报道</h3><ul style="line-height:1.8">{items_html}</ul>'
+        mp_formatted = mp.replace('\n', '<br>')
+        mp_block = f"""
+        <div style="background:#f0f7ff;border-left:4px solid #0066cc;padding:16px 20px;margin:20px 0;border-radius:4px">
+          <h3 style="margin-top:0">🧠 多视角故事总结</h3>
+          {cluster_html}
+          <div style="margin-top:12px;word-wrap:break-word;overflow-wrap:break-word">{mp_formatted}</div>
+        </div>"""
+    else:
+        mp_block = ""
     html = f"""
     <html>
-    <head><meta charset="utf-8"><title>{title}</title></head>
-    <body style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; max-width: 760px; margin: 40px auto; line-height: 1.6;">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>{title}</title>
+      <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+               max-width: 760px; margin: 20px auto; padding: 0 16px;
+               line-height: 1.7; color: #222; }}
+        h1 {{ font-size: 1.3em; line-height: 1.4; }}
+        a {{ word-break: break-all; }}
+        p, li, div {{ word-wrap: break-word; overflow-wrap: break-word; }}
+      </style>
+    </head>
+    <body>
       <h1>{title}</h1>
       <p><b>来源：</b>{source}</p>
       <p><b>发布时间：</b>{published}</p>
@@ -408,7 +484,7 @@ def run_judge():
     """手动运行AI评分（需要密码保护，这里简化）"""
     import subprocess
     try:
-        result = subprocess.run(['python3', 'criteria_judge.py', '--threshold', '60'], 
+        result = subprocess.run(['python3', 'criteria_judge.py', '--threshold', '50'], 
                               capture_output=True, text=True, cwd=os.path.dirname(__file__))
         return f"<pre>AI评分已运行:\n{result.stdout}</pre>"
     except Exception as e:
@@ -426,8 +502,8 @@ if __name__ == '__main__':
     print(f"  📰 总文章数: {stats['total_articles']} 篇")
     print(f"  🎯 已评分文章: {stats['scored_articles']} 篇 ({stats['scoring_rate']:.1f}%)")
     print(f"  📈 平均评分: {stats['avg_score']:.1f} 分")
-    print(f"  ✅ 保留文章: {stats['kept_articles']} 篇 (≥60分)")
-    print(f"  ❌ 淘汰文章: {stats['rejected_articles']} 篇 (<60分)")
+    print(f"  ✅ 保留文章: {stats['kept_articles']} 篇 (≥{FILTER_THRESHOLD}分)")
+    print(f"  ❌ 淘汰文章: {stats['rejected_articles']} 篇 (<{FILTER_THRESHOLD}分)")
     
     print(f"\n📱 本地地址: http://localhost:5006/feed")
     print(f"🌐 永久地址: https://rss.borntofly.ai/feed.xml")

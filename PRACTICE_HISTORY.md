@@ -49,3 +49,27 @@
 - ✅ **新增架构类源**：面向CTO/首席架构成长内容
 - ✅ **自动化运维**：cron每周两次自动更新
 - ✅ **播客管线雏形**：脚本生成与评分策略已就绪（待Inworld TTS接入）
+
+## 第九阶段：2026.3 - Particle式多视角故事合成
+受Particle新闻App启发，将孤立文章升级为「故事全貌」。
+- ✅ **多视角合成**：`multi_perspective.py` 关键词聚类（每组5篇），DeepSeek综合生成战略层/执行层分析
+- ✅ **内容质量过滤**：只对全文≥500字或摘要≥300字的深度文章生成合成（排除短新闻）
+- ✅ **跨媒体视角**：自动检测中文/英文来源混合，触发中西方媒体框架对比分析
+- ✅ **cluster_json**：存储每篇合成涉及的原文来源（标题/媒体/链接），内页展示溯源列表
+- ✅ **成员反向指针**：非种子文章显示🔗回链，指向所属故事的种子文章
+- ✅ **🧠 标题前缀**：种子文章标题加🧠前缀，在Reeder中可视化识别（RSS客户端按pubDate排序，无法控制XML顺序）
+- ✅ **Markdown清洗**：`_strip_markdown()` 过滤`###`/`**`等标记，RSS描述纯文本输出
+- ✅ **新增5个英文深度源**：Wired、Ars Technica、MIT Technology Review、VentureBeat、机器之心（共58个源）
+- ✅ **BA受众定位**：合成提示词明确面向「数据驱动的业务分析师」，聚焦BA与产品/算法团队协作的实践价值
+- **关键坑**：`sqlite3.Row` 不支持 `.get()`，必须用直接索引 `row['col']`
+- **关键坑**：RSS客户端（Reeder）按pubDate排序，忽略XML条目顺序
+
+## 第十阶段：2026.3.7 - 学习系统 & 知识图谱
+将RSS订阅从被动信息消费升级为「边做边学」的主动成长闭环。
+- ✅ **学习关联注入**：`criteria_judge.py` 加载 `~/Agents/knowledge_log/concepts.json`，将学习关联自然拼接在ai_reason末尾（格式：`理由 — 学习关联`）
+- ✅ **合成提示词增强**：`multi_perspective.py` 在战略/执行/延伸思考之外，新增可选「与我们项目的关联」段落，仅在有实质关联时输出
+- ✅ **知识图谱创建**：`~/Agents/knowledge_log/concepts.json`，收录来自ai_rss实践的11个概念，覆盖Infrastructure/Backend/Networking/AI Integration/Data Pipeline/System Architecture六个领域，含Ebbinghaus复习时间表
+- ✅ **项目复盘**：`~/Agents/knowledge_log/projects/ai_rss.md`，CTO视角的架构决策表、关键坑、未来方向
+- ✅ **env变量修复**：两个文件改用 `dotenv_values()` 直接读取 `.env` 文件，绕过shell中残留的过期`DEEPSEEK_API_KEY`变量
+- **愿景**：未来将ai_reason + 多视角合成统一为一个整体简报（holistic brief），学习关联是其中一个自然维度
+- **下一步**：添加 One Useful Thing / Lenny's Newsletter 等Substack源；Ebbinghaus定期复习会话

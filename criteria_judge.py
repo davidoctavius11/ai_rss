@@ -11,17 +11,32 @@ import json
 import os
 import time
 from openai import OpenAI
-from dotenv import load_dotenv
-
-load_dotenv()
+from dotenv import dotenv_values
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'data', 'ai_rss.db')
+KNOWLEDGE_LOG_PATH = os.path.expanduser('~/Agents/knowledge_log/concepts.json')
+
+
+def _load_knowledge_context():
+    """Load a compact summary of active learning concepts for injection into scoring prompts."""
+    try:
+        with open(KNOWLEDGE_LOG_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        lines = []
+        for c in data.get('concepts', []):
+            lines.append(f"[{c['domain']}] {c['concept']}: {', '.join(c.get('keywords', []))}")
+        return '\n'.join(lines)
+    except Exception:
+        return ''
 DEFAULT_THRESHOLD = 50
 FULLTEXT_PREFETCH_LIMIT = 120
 FULLTEXT_PREFETCH_DAYS = 90
+
+# Read API credentials directly from .env file to bypass stale shell environment variables
+_env = dotenv_values(os.path.join(os.path.dirname(__file__), '.env'))
 client = OpenAI(
-    api_key=os.getenv('OPENAI_API_KEY'),
-    base_url=os.getenv('OPENAI_BASE_URL', 'https://api.deepseek.com/v1')
+    api_key=_env.get('DEEPSEEK_API_KEY') or _env.get('OPENAI_API_KEY'),
+    base_url=_env.get('OPENAI_BASE_URL', 'https://api.deepseek.com/v1')
 )
 
 # 从config.py导入RSS_FEEDS
@@ -37,24 +52,46 @@ FEED_CRITERIA_MAP = {}
 for feed in RSS_FEEDS:
     FEED_CRITERIA_MAP[feed['name']] = feed.get('criteria', '')
 
-def judge_article(article_id, feed_name, title, content, is_fulltext=False):
+def judge_article(article_id, feed_name, title, content, is_fulltext=False, borrowed_from=None):
     """
     用该源专属的criteria审阅单篇文章
     content可能是全文也可能是RSS摘要
     is_fulltext: 用于日志区分
     """
-    
+
     criteria = FEED_CRITERIA_MAP.get(feed_name, '')
     if not criteria:
         return 50, "无明确criteria，默认保留"
-    
+
+    # 如果内容过短或缺失，至少用标题参与判断（不忽略）
     if not content or len(content) < 50:
-        return 40, f"内容过短({len(content) if content else 0}字)，无法有效判断"
-    
+        content = f"{title}\n\n{content or ''}".strip()
+
     # 根据内容长度决定截取多少
     content_sample = content[:3000] if len(content) > 3000 else content
-    content_type = "【全文】" if is_fulltext and len(content) > 500 else "【RSS摘要】"
-    
+    if is_fulltext and len(content) > 500:
+        content_type = "【全文】"
+    elif len(content) >= 50:
+        content_type = "【RSS摘要】"
+    else:
+        content_type = "【标题】"
+    if borrowed_from:
+        content_type += f"(来自: {borrowed_from})"
+
+    knowledge_context = _load_knowledge_context()
+    learning_section = ""
+    if knowledge_context:
+        learning_section = f"""
+---
+【我正在学习的技术领域（来自真实项目实践）】
+{knowledge_context}
+
+3. 学习关联（可选）：
+   如果这篇文章与上述任一领域有实质关联，用半句话点出（例如："与我们用LaunchAgents管理进程的实践相关"）。
+   无关联则输出 null。
+   将关联内容拼接在reason末尾，格式：reason内容 + " — " + 学习关联。
+"""
+
     prompt = f"""你是一个严格的科技文章审稿人。请根据以下"筛选标准"，判断这篇文章是否符合要求。
 
 ---
@@ -68,7 +105,7 @@ def judge_article(article_id, feed_name, title, content, is_fulltext=False):
 ---
 【文章内容】{content_type}
 {content_sample}
-
+{learning_section}
 ---
 请完成两项任务：
 
@@ -80,12 +117,12 @@ def judge_article(article_id, feed_name, title, content, is_fulltext=False):
    - 20-29：完全不相关，或属于"严格排除"范围
    - 0-19：垃圾内容、广告、纯PR稿
 
-2. 评分理由（一句话）：
+2. 评分理由（一句话，如有学习关联则附在末尾）：
    说明为什么给这个分数，扣分点或加分点是什么。
    如果内容明显属于"严格排除"范围，请明确指出。
 
 输出格式（严格按此JSON）：
-{{"score": 整数, "reason": "一句话理由"}}
+{{"score": 整数, "reason": "一句话理由（含学习关联，若有）"}}
 """
 
     try:
@@ -96,7 +133,7 @@ def judge_article(article_id, feed_name, title, content, is_fulltext=False):
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
-            max_tokens=200,
+            max_tokens=280,
             response_format={"type": "json_object"}
         )
         
@@ -113,31 +150,34 @@ def judge_article(article_id, feed_name, title, content, is_fulltext=False):
         print(f"  ⚠️ 审阅失败: {e}")
         return 40, f"AI审阅出错: {str(e)[:50]}"
 
-def batch_judge_unread(threshold=DEFAULT_THRESHOLD, limit=200):
+def batch_judge_unread(threshold=DEFAULT_THRESHOLD, limit=200, prefetch=True, only_missing_fulltext=False):
     """
     批量审阅未评分的文章
     优先使用全文，如果没有全文则使用RSS摘要
     threshold: 低于此分的标记为淘汰
     """
     # 预抓全文：提升评分质量（优先覆盖最近文章）
-    try:
-        from fulltext_fetcher import update_articles_with_fulltext
-        print(f"🧠 预抓全文: 最近{FULLTEXT_PREFETCH_DAYS}天，最多{FULLTEXT_PREFETCH_LIMIT}篇")
-        update_articles_with_fulltext(
-            limit=FULLTEXT_PREFETCH_LIMIT,
-            force=False,
-            feed_name=None,
-            days=FULLTEXT_PREFETCH_DAYS,
-        )
-    except Exception as e:
-        print(f"⚠️ 预抓全文失败: {e}")
+    if prefetch:
+        try:
+            from fulltext_fetcher import update_articles_with_fulltext
+            print(f"🧠 预抓全文: 最近{FULLTEXT_PREFETCH_DAYS}天，最多{FULLTEXT_PREFETCH_LIMIT}篇")
+            update_articles_with_fulltext(
+                limit=FULLTEXT_PREFETCH_LIMIT,
+                force=False,
+                feed_name=None,
+                days=FULLTEXT_PREFETCH_DAYS,
+            )
+        except Exception as e:
+            print(f"⚠️ 预抓全文失败: {e}")
+    else:
+        print("⏭️ 已跳过全文预抓（仅用摘要/标题打分）")
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     
-    # 查找所有未评分的文章，优先使用全文，没有全文就用raw_content
-    c.execute('''
+    # 查找所有未评分的文章，优先使用全文，没有全文就用raw_content；若都缺失则用标题
+    base_query = '''
         SELECT 
             id, 
             feed_name, 
@@ -145,7 +185,8 @@ def batch_judge_unread(threshold=DEFAULT_THRESHOLD, limit=200):
             article_link,
             CASE 
                 WHEN content IS NOT NULL AND length(content) > 200 THEN content 
-                ELSE raw_content 
+                WHEN raw_content IS NOT NULL AND length(raw_content) > 0 THEN raw_content
+                ELSE article_title
             END as content_to_judge,
             CASE 
                 WHEN content IS NOT NULL AND length(content) > 200 THEN 1 
@@ -153,29 +194,62 @@ def batch_judge_unread(threshold=DEFAULT_THRESHOLD, limit=200):
             END as has_fulltext
         FROM articles
         WHERE criteria_score IS NULL
-        AND (
-            (content IS NOT NULL AND length(content) > 50)
-            OR 
-            (raw_content IS NOT NULL AND length(raw_content) > 50)
-        )
+    '''
+    if only_missing_fulltext:
+        base_query += '''
+        AND (content IS NULL OR length(content) <= 200)
+        '''
+    base_query += '''
         ORDER BY published_date DESC
         LIMIT ?
-    ''', (limit,))
+    '''
+    c.execute(base_query, (limit,))
     
     articles = c.fetchall()
-    print(f"⚖️ 共 {len(articles)} 篇文章待审阅（含RSS摘要）")
+    if only_missing_fulltext:
+        print(f"⚖️ 共 {len(articles)} 篇文章待审阅（仅缺失全文的文章）")
+    else:
+        print(f"⚖️ 共 {len(articles)} 篇文章待审阅（含RSS摘要）")
     
     kept = 0
     rejected = 0
     fulltext_count = 0
     summary_count = 0
     
+    def _borrow_content_by_title(article_id, title):
+        """从同标题的其他来源借用全文/摘要"""
+        c.execute('''
+            SELECT feed_name, content, raw_content
+            FROM articles
+            WHERE article_title = ?
+              AND id != ?
+              AND (
+                    (content IS NOT NULL AND length(content) > 200)
+                 OR (raw_content IS NOT NULL AND length(raw_content) > 0)
+              )
+            ORDER BY length(content) DESC
+            LIMIT 1
+        ''', (title, article_id))
+        row = c.fetchone()
+        if not row:
+            return None, None
+        borrowed_feed = row[0]
+        borrowed_content = row[1] if row[1] and len(row[1]) > 200 else row[2]
+        return borrowed_content, borrowed_feed
+
     for row in articles:
         article_id = row['id']
         feed_name = row['feed_name']
         title = row['article_title']
         content = row['content_to_judge']
         has_fulltext = row['has_fulltext']
+        borrowed_from = None
+
+        # 如果只有标题/超短内容，尝试从其他来源借全文/摘要
+        if not content or len(content) < 50:
+            borrowed, borrowed_from = _borrow_content_by_title(article_id, title)
+            if borrowed:
+                content = borrowed
         
         if has_fulltext:
             fulltext_count += 1
@@ -185,7 +259,7 @@ def batch_judge_unread(threshold=DEFAULT_THRESHOLD, limit=200):
         print(f"\n📄 {feed_name} - {title[:60]}...")
         print(f"  内容类型: {'✅ 全文' if has_fulltext else '📋 RSS摘要'}, 长度: {len(content)} 字")
         
-        score, reason = judge_article(article_id, feed_name, title, content, is_fulltext=has_fulltext)
+        score, reason = judge_article(article_id, feed_name, title, content, is_fulltext=has_fulltext, borrowed_from=borrowed_from)
         
         # 存入数据库
         c.execute('''
@@ -346,6 +420,7 @@ def judge_specific_feed(feed_name, threshold=DEFAULT_THRESHOLD):
 
 if __name__ == '__main__':
     import sys
+    skip_prefetch_env = os.getenv("SKIP_FULLTEXT_PREFETCH", "").strip().lower() in ("1", "true", "yes", "y")
     
     if len(sys.argv) > 1:
         if sys.argv[1] == "--reset":
@@ -354,16 +429,23 @@ if __name__ == '__main__':
             get_scoring_stats()
         elif sys.argv[1] == "--feed" and len(sys.argv) > 2:
             judge_specific_feed(sys.argv[2])
+        elif sys.argv[1] == "--no-prefetch":
+            batch_judge_unread(threshold=DEFAULT_THRESHOLD, limit=200, prefetch=False)
+        elif sys.argv[1] == "--only-missing-fulltext":
+            batch_judge_unread(threshold=DEFAULT_THRESHOLD, limit=200, prefetch=False, only_missing_fulltext=True)
         elif sys.argv[1] == "--threshold" and len(sys.argv) > 2:
             threshold = int(sys.argv[2])
-            batch_judge_unread(threshold=threshold, limit=200)
+            batch_judge_unread(threshold=threshold, limit=200, prefetch=not skip_prefetch_env)
         else:
             print("用法:")
             print("  python criteria_judge.py              # 正常审阅（阈值60）")
             print("  python criteria_judge.py --threshold 50  # 设置阈值50")
+            print("  python criteria_judge.py --no-prefetch   # 不预抓全文，仅用摘要/标题")
+            print("  python criteria_judge.py --only-missing-fulltext  # 仅评分缺失全文的文章")
+            print("  SKIP_FULLTEXT_PREFETCH=1 python criteria_judge.py --threshold 50  # 环境变量跳过全文预抓")
             print("  python criteria_judge.py --reset      # 重置所有评分")
             print("  python criteria_judge.py --stats      # 查看评分统计")
             print("  python criteria_judge.py --feed '源名称' # 专门审阅某个源")
     else:
-        batch_judge_unread(threshold=DEFAULT_THRESHOLD, limit=200)
+        batch_judge_unread(threshold=DEFAULT_THRESHOLD, limit=200, prefetch=not skip_prefetch_env)
         get_scoring_stats()

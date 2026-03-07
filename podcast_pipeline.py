@@ -11,6 +11,8 @@ Podcast pipeline:
 import os
 import re
 import json
+import tempfile
+import wave
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
@@ -27,6 +29,15 @@ OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'output', 'podcast')
 SCRIPT_DIR = os.path.join(OUTPUT_DIR, 'scripts')
 AUDIO_DIR = os.path.join(OUTPUT_DIR, 'audio')
 PODCAST_FEED_PATH = os.path.join(OUTPUT_DIR, 'podcast.xml')
+
+# Audio config
+ENABLE_TTS = os.getenv("ENABLE_TTS", "1") == "1"
+TTS_MODEL = os.getenv("TTS_MODEL", "tts-1")
+TTS_VOICE = os.getenv("TTS_VOICE", "alloy")
+TTS_FORMAT = os.getenv("TTS_FORMAT", "wav")
+TTS_SPEED = float(os.getenv("TTS_SPEED", "1.0"))
+PODCAST_AUDIO_BASE_URL = os.getenv("PODCAST_AUDIO_BASE_URL", "https://rss.borntofly.ai/podcast/audio/").rstrip("/") + "/"
+PODCAST_FEED_URL = os.getenv("PODCAST_FEED_URL", "https://rss.borntofly.ai/podcast.xml")
 
 # Selection rules
 DAILY_CAP = 10
@@ -185,13 +196,15 @@ def _ensure_dirs():
 def _build_prompt(article, minutes, episode_type):
     role = "两位主持人对谈" if episode_type == "two-host" else "单人主持"
     length_hint = f"{minutes}分钟"
+    target_chars = minutes * 360  # rough Chinese characters per minute
     prompt = f"""
-请将以下内容改写成中文播客脚本（{role}），时长约{length_hint}。
+请将以下内容改写成中文播客脚本（{role}），时长约{length_hint}（目标字数约{target_chars}字）。
 要求：
 1) 重点突出技术与商业目标的系统性视角（CTO/CEO视角）
 2) 提供关键概念解释与简化类比
 3) 清晰结构：开场 -> 关键点 -> 影响与取舍 -> 结论
 4) 语气专业但易懂
+5) 开头加一句“本音频由AI生成”
 
 标题：{article.get('title')}
 来源：{article.get('source')}
@@ -216,6 +229,76 @@ def _generate_script(prompt):
         max_tokens=2200,
     )
     return resp.choices[0].message.content
+
+def _split_text(text, max_chars=3500):
+    # split by paragraphs then sentences to fit TTS limit
+    paras = [p.strip() for p in text.split("\n\n") if p.strip()]
+    chunks = []
+    buf = ""
+    for p in paras:
+        if len(buf) + len(p) + 1 <= max_chars:
+            buf = (buf + "\n\n" + p).strip()
+        else:
+            if buf:
+                chunks.append(buf)
+                buf = ""
+            # if paragraph itself too long, split by sentence
+            if len(p) > max_chars:
+                sentences = re.split(r"(。|！|？|；|;|\.)", p)
+                tmp = ""
+                for s in sentences:
+                    if not s:
+                        continue
+                    if len(tmp) + len(s) <= max_chars:
+                        tmp += s
+                    else:
+                        if tmp:
+                            chunks.append(tmp)
+                        tmp = s
+                if tmp:
+                    chunks.append(tmp)
+            else:
+                buf = p
+    if buf:
+        chunks.append(buf)
+    return chunks
+
+def _tts_to_wav(text, out_path):
+    api_key = os.getenv("OPENAI_API_KEY")
+    base_url = os.getenv("OPENAI_BASE_URL")
+    if not api_key or OpenAI is None:
+        return None
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    chunks = _split_text(text, max_chars=3500)
+    tmp_files = []
+    try:
+        for i, chunk in enumerate(chunks):
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+            tmp.close()
+            with client.audio.speech.with_streaming_response.create(
+                model=TTS_MODEL,
+                voice=TTS_VOICE,
+                input=chunk,
+                response_format=TTS_FORMAT,
+                speed=TTS_SPEED,
+            ) as response:
+                response.stream_to_file(tmp.name)
+            tmp_files.append(tmp.name)
+
+        # concat wav chunks
+        with wave.open(out_path, 'wb') as wf_out:
+            for i, f in enumerate(tmp_files):
+                with wave.open(f, 'rb') as wf_in:
+                    if i == 0:
+                        wf_out.setparams(wf_in.getparams())
+                    wf_out.writeframes(wf_in.readframes(wf_in.getnframes()))
+        return out_path
+    finally:
+        for f in tmp_files:
+            try:
+                os.unlink(f)
+            except Exception:
+                pass
 
 def _save_script(article, minutes, episode_type, script_text):
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", article['title'].lower())[:60].strip("-")
@@ -246,6 +329,8 @@ def _register_episode(article, episode_type, minutes, score, script_path, audio_
 
 def _build_podcast_feed():
     # Only include episodes that have audio_path
+    from feedgen.feed import FeedGenerator
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
@@ -258,19 +343,26 @@ def _build_podcast_feed():
     rows = c.fetchall()
     conn.close()
 
-    fg = RSSGenerator("AI RSS Podcast", feed_link="https://rss.borntofly.ai/podcast.xml",
-                      feed_description="AI RSS 播客（中文）")
-    items = []
+    fg = FeedGenerator()
+    fg.title("AI RSS Podcast")
+    fg.link(href=PODCAST_FEED_URL, rel='self')
+    fg.description("AI RSS 播客（中文）")
+    fg.language('zh-CN')
+
     for r in rows:
-        items.append({
-            "title": r['article_title'],
-            "link": r['article_link'],
-            "published": datetime.fromisoformat(r['created_at']),
-            "summary": f"{r['episode_type']} | {r['minutes']}分钟",
-            "ai_reason": "播客生成",
-            "source": "AI RSS Podcast",
-        })
-    xml = fg.generate_xml_string(items)
+        fe = fg.add_entry()
+        fe.title(r['article_title'])
+        fe.link(href=r['article_link'])
+        fe.pubDate(datetime.fromisoformat(r['created_at']))
+        fe.description(f"{r['episode_type']} | {r['minutes']}分钟")
+
+        audio_path = r['audio_path']
+        filename = os.path.basename(audio_path)
+        audio_url = PODCAST_AUDIO_BASE_URL + filename
+        size = os.path.getsize(audio_path) if os.path.exists(audio_path) else 0
+        fe.enclosure(audio_url, str(size), "audio/wav")
+
+    xml = fg.rss_str(pretty=True).decode('utf-8')
     with open(PODCAST_FEED_PATH, "w", encoding="utf-8") as f:
         f.write(xml)
 
@@ -305,7 +397,17 @@ def run(days=1):
             # store prompt as placeholder for manual generation
             script = prompt
         script_path = _save_script(a, minutes, e_type, script)
-        _register_episode(a, e_type, minutes, ps, script_path, audio_path=None)
+
+        audio_path = None
+        if ENABLE_TTS:
+            slug = os.path.splitext(os.path.basename(script_path))[0]
+            audio_path = os.path.join(AUDIO_DIR, f"{slug}.wav")
+            try:
+                _tts_to_wav(script, audio_path)
+            except Exception:
+                audio_path = None
+
+        _register_episode(a, e_type, minutes, ps, script_path, audio_path=audio_path)
 
     _build_podcast_feed()
 
