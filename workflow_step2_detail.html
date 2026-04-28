@@ -419,25 +419,19 @@
       <tbody>
         <tr>
           <td><strong>相关性</strong><br><span style="font-size:11px;color:#94a3b8">relevance</span></td>
-          <td class="score-cell" style="color:#15803d">30</td>
+          <td class="score-cell" style="color:#15803d">40</td>
           <td>与京东14个商业领域的直接关联程度</td>
           <td>重点加权：智能零售/物流/搜推/广告/金融；对纯通用AI内容相关性打分偏低</td>
         </tr>
         <tr>
           <td><strong>新颖性</strong><br><span style="font-size:11px;color:#94a3b8">novelty</span></td>
-          <td class="score-cell" style="color:#15803d">25</td>
+          <td class="score-cell" style="color:#15803d">30</td>
           <td>信息增量 — 是新知识、新趋势，还是已知内容的重复</td>
           <td>RT（转推）硬封顶12分；社区讨论封顶15-20分（有一手测试数据的上浮）</td>
         </tr>
         <tr>
-          <td><strong>收敛度</strong><br><span style="font-size:11px;color:#94a3b8">convergence</span></td>
-          <td class="score-cell" style="color:#15803d">20</td>
-          <td>该信号是否已被多个独立来源验证</td>
-          <td>单一来源最高15分；有2个以上独立来源交叉印证，可获满分</td>
-        </tr>
-        <tr>
           <td><strong>来源层级</strong><br><span style="font-size:11px;color:#94a3b8">source_tier</span></td>
-          <td class="score-cell" style="color:#15803d">15</td>
+          <td class="score-cell" style="color:#15803d">20</td>
           <td>信源本身的权威性和可信度</td>
           <td>Tier 1（官方博客/论文/政府公告）满分；Tier 3（聚合媒体/转载）≤8分</td>
         </tr>
@@ -452,7 +446,7 @@
 
     <div class="formula-box">
 <span class="comment"># 总分计算（由LLM输出，非加权求和；LLM有整体判断空间±5分）</span>
-<span class="key">total_score</span> = relevance + novelty + convergence + source_tier + timeliness
+<span class="key">total_score</span> = relevance + novelty + source_tier + timeliness
 <span class="comment"># 满分 100 分；LLM fallback（解析失败时）默认 30 分</span>
 
 <span class="comment"># 特殊规则覆盖（精排后的score二次修正）</span>
