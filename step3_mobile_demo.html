@@ -182,7 +182,7 @@
     flex-direction: column;
     gap: 10px;
     overflow-y: auto;
-    height: 714px;
+    height: 660px;
   }
 
   /* ── Cluster banner ── */
@@ -191,6 +191,7 @@
     border-radius: 14px;
     padding: 14px 16px;
     color: white;
+    flex-shrink: 0;
   }
   .cluster-banner .cluster-label {
     font-size: 10px;
@@ -226,9 +227,14 @@
     box-shadow: 0 1px 3px rgba(0,0,0,.08);
     transition: transform .15s, opacity .3s;
     position: relative;
+    flex-shrink: 0;
   }
   .card.done { opacity: .45; }
   .card.done .card-body { pointer-events: none; }
+  .card.done .card-summary { display: none; }
+  .card.done .x-strip { display: none; }
+  .card.done .action-bar { display: none; }
+  .card.done .card-title { font-size: 13px; -webkit-line-clamp: 1; }
 
   .card-body { padding: 14px 16px 0; }
 
@@ -303,29 +309,52 @@
   /* Quick action bar */
   .action-bar {
     display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px 12px;
     border-top: 1px solid #f2f2f7;
   }
   .action-btn {
     flex: 1;
-    padding: 11px 4px;
+    padding: 9px 4px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
+    gap: 4px;
     cursor: pointer;
-    transition: background .12s;
+    transition: all .12s;
     border: none;
+    border-radius: 12px;
     background: transparent;
     -webkit-tap-highlight-color: transparent;
   }
-  .action-btn:active { background: #f2f2f7; }
-  .action-btn .btn-icon { font-size: 18px; line-height: 1; }
-  .action-btn .btn-label { font-size: 10px; color: #8e8e93; font-weight: 500; }
+  .action-btn:active { opacity: .7; transform: scale(.95); }
+  .action-btn .btn-icon { font-size: 20px; line-height: 1; }
+  .action-btn .btn-label { font-size: 11px; font-weight: 600; }
 
-  .action-btn.btn-skip .btn-icon { opacity: .4; }
-  .action-btn.btn-useful .btn-label { color: #34c759; }
-  .action-btn.btn-star  .btn-label { color: #ff9500; }
-  .action-btn.btn-comment .btn-label { color: #007aff; }
+  /* Skip — muted */
+  .action-btn.btn-skip { flex: 0 0 36px; }
+  .action-btn.btn-skip .btn-icon { font-size: 16px; opacity: .3; }
+  .action-btn.btn-skip .btn-label { display: none; }
+
+  /* Feedback trio — highlighted */
+  .action-btn.btn-useful {
+    background: #f0fdf4;
+    border: 1.5px solid #bbf7d0;
+  }
+  .action-btn.btn-useful .btn-label { color: #15803d; }
+
+  .action-btn.btn-star {
+    background: #fffbeb;
+    border: 1.5px solid #fde68a;
+  }
+  .action-btn.btn-star .btn-label { color: #b45309; }
+
+  .action-btn.btn-comment {
+    background: #eff6ff;
+    border: 1.5px solid #bfdbfe;
+  }
+  .action-btn.btn-comment .btn-label { color: #1d4ed8; }
 
   /* Done stamp */
   .done-stamp {
@@ -599,55 +628,55 @@
 
       <!-- Cluster banner -->
       <div class="cluster-banner">
-        <div class="cluster-label">🔗 收敛热点 · 3 源独立报道</div>
-        <div class="cluster-title">国内大模型推理成本价格战进入白热化</div>
+        <div class="cluster-label">🔗 收敛热点 · 4 源独立报道</div>
+        <div class="cluster-title">AI购物 Agent 完成从搜索到下单全链路闭环，电商格局面临颠覆</div>
         <div class="cluster-meta">
-          <span class="cluster-pill">DeepSeek · 月之暗面 · 阿里云</span>
-          <span class="cluster-pill">收敛分 87</span>
+          <span class="cluster-pill">OpenAI · Google · Perplexity · 36氪</span>
+          <span class="cluster-pill">收敛分 91</span>
         </div>
       </div>
 
       <!-- Card 1 — already done -->
       <div class="card done" id="card1">
-        <div class="done-stamp">✅</div>
+        <div class="done-stamp">⭐</div>
         <div class="card-body">
           <div class="card-top">
             <div class="card-source">
               <div class="source-dot t1"></div>
-              DeepSeek官方博客 · 2小时前
+              OpenAI官方博客 · 1小时前
             </div>
-            <div class="score-badge score-high">92分</div>
+            <div class="score-badge score-high">94分</div>
           </div>
-          <div class="card-title">DeepSeek-V3 推理 API 降价 80%，每百万 token 仅需 ¥0.27</div>
-          <div class="card-summary">DeepSeek宣布对推理API进行大幅降价，标准输入价格降至每百万token ¥0.27，创下国内大模型最低价记录……</div>
+          <div class="card-title">OpenAI 推出 ChatGPT Shopping Agent：自主完成比价、加购、支付全流程，接入亚马逊与 Shopify</div>
+          <div class="card-summary">OpenAI宣布ChatGPT新增购物Agent能力，用户只需描述需求，Agent自动跨平台比价、阅读评论、完成下单，首批接入亚马逊和Shopify，日活测试用户超200万……</div>
         </div>
         <div class="action-bar">
           <button class="action-btn btn-skip"><span class="btn-icon">⏭</span><span class="btn-label">跳过</span></button>
-          <button class="action-btn btn-useful"><span class="btn-icon">👍</span><span class="btn-label">有价值</span></button>
-          <button class="action-btn btn-star"><span class="btn-icon">⭐</span><span class="btn-label">必读</span></button>
-          <button class="action-btn btn-comment"><span class="btn-icon">💬</span><span class="btn-label">快评</span></button>
+          <button class="action-btn btn-useful"><span class="btn-icon">👍</span><span class="btn-label">点赞</span></button>
+          <button class="action-btn btn-star"><span class="btn-icon">⭐</span><span class="btn-label">收藏</span></button>
+          <button class="action-btn btn-comment"><span class="btn-icon">💬</span><span class="btn-label">评论</span></button>
         </div>
       </div>
 
       <!-- Card 2 — already done -->
       <div class="card done" id="card2">
-        <div class="done-stamp">⭐</div>
+        <div class="done-stamp">✅</div>
         <div class="card-body">
           <div class="card-top">
             <div class="card-source">
-              <div class="source-dot t2"></div>
-              36氪 · 4小时前
+              <div class="source-dot t1"></div>
+              Google DeepMind · 3小时前
             </div>
-            <div class="score-badge score-high">85分</div>
+            <div class="score-badge score-high">88分</div>
           </div>
-          <div class="card-title">月之暗面 Kimi 跟进：推理价格腰斩，强调长文档能力护城河</div>
-          <div class="card-summary">Kimi宣布推理API降价50%，同时强调其长达200万token的上下文窗口是差异化竞争优势……</div>
+          <div class="card-title">Google Gemini 2.5 Pro 上线"Buy for Me"：跨站点自主购物，深度绑定 Google Pay</div>
+          <div class="card-summary">Google将Gemini购物Agent功能推向全球，可在任意电商网站执行搜索、筛选、下单操作，依托Google Pay实现一键免密支付，优先上线美国、英国、日本三个市场……</div>
         </div>
         <div class="action-bar">
           <button class="action-btn btn-skip"><span class="btn-icon">⏭</span><span class="btn-label">跳过</span></button>
-          <button class="action-btn btn-useful"><span class="btn-icon">👍</span><span class="btn-label">有价值</span></button>
-          <button class="action-btn btn-star"><span class="btn-icon">⭐</span><span class="btn-label">必读</span></button>
-          <button class="action-btn btn-comment"><span class="btn-icon">💬</span><span class="btn-label">快评</span></button>
+          <button class="action-btn btn-useful"><span class="btn-icon">👍</span><span class="btn-label">点赞</span></button>
+          <button class="action-btn btn-star"><span class="btn-icon">⭐</span><span class="btn-label">收藏</span></button>
+          <button class="action-btn btn-comment"><span class="btn-icon">💬</span><span class="btn-label">评论</span></button>
         </div>
       </div>
 
@@ -657,45 +686,49 @@
         <div class="card-body">
           <div class="card-top">
             <div class="card-source">
-              <div class="source-dot t1"></div>
-              阿里云官方 · 6小时前
+              <div class="source-dot t2"></div>
+              36氪 · 5小时前
             </div>
-            <div class="score-badge score-high">81分</div>
+            <div class="score-badge score-high">83分</div>
           </div>
-          <div class="card-title">通义千问 Qwen2.5-Max 同步降价，阿里云称"AGI时代基础设施应像水电一样普惠"</div>
-          <div class="card-summary">阿里云将Qwen2.5-Max API价格下调至每百万token ¥0.8，张勇在内部信中表示低价是推动AI大规模落地的关键战略……</div>
+          <div class="card-title">淘宝接入通义千问购物 Agent：618 前上线"帮我买"，主打国内供应链深度整合</div>
+          <div class="card-summary">阿里巴巴宣布在淘宝App内测"帮我买"功能，由通义千问驱动，能够理解模糊需求（如"给妈妈买一个60岁生日礼物预算500"），自动完成选品、比价和下单，并深度整合菜鸟物流时效数据……</div>
         </div>
         <div class="x-strip">
           <span class="x-icon">𝕏</span>
-          Karpathy 转推："Race to zero on inference costs is happening faster than expected in China"
+          Sam Altman："The shopping agent wars are officially on. This is the killer app moment."
         </div>
         <div class="action-bar">
           <button class="action-btn btn-skip" onclick="doAction('card3','skip')"><span class="btn-icon">⏭</span><span class="btn-label">跳过</span></button>
-          <button class="action-btn btn-useful" onclick="doAction('card3','useful')"><span class="btn-icon">👍</span><span class="btn-label">有价值</span></button>
-          <button class="action-btn btn-star" onclick="doAction('card3','star')"><span class="btn-icon">⭐</span><span class="btn-label">必读</span></button>
-          <button class="action-btn btn-comment" onclick="openComment('card3','通义千问 Qwen2.5-Max 同步降价')"><span class="btn-icon">💬</span><span class="btn-label">快评</span></button>
+          <button class="action-btn btn-useful" onclick="doAction('card3','useful')"><span class="btn-icon">👍</span><span class="btn-label">点赞</span></button>
+          <button class="action-btn btn-star" onclick="doAction('card3','star')"><span class="btn-icon">⭐</span><span class="btn-label">收藏</span></button>
+          <button class="action-btn btn-comment" onclick="openComment('card3','淘宝接入通义千问购物 Agent')"><span class="btn-icon">💬</span><span class="btn-label">评论</span></button>
         </div>
       </div>
 
-      <!-- Card 4 — active, different cluster -->
+      <!-- Card 4 — active -->
       <div class="card" id="card4">
         <div class="done-stamp"></div>
         <div class="card-body">
           <div class="card-top">
             <div class="card-source">
               <div class="source-dot t1"></div>
-              Google DeepMind · 8小时前
+              宇树科技官方 · 7小时前
             </div>
-            <div class="score-badge score-high">79分</div>
+            <div class="score-badge score-high">86分</div>
           </div>
-          <div class="card-title">Gemini 2.0 Flash 上线多步骤 Agentic 工作流，支持工具调用链与自动重试</div>
-          <div class="card-summary">Google宣布Gemini 2.0 Flash支持原生多步骤Agent执行，可调用Search、Code Execution、Functions，并具备自动错误检测和重试机制……</div>
+          <div class="card-title">宇树 Unitree G2 Pro 量产交付：顺丰、京东、菜鸟签署批量采购协议，目标2026年万台级仓储部署</div>
+          <div class="card-summary">宇树科技宣布G2 Pro机器人正式进入量产阶段，单台成本降至9.8万元，顺丰、京东物流、菜鸟已签署框架协议，计划2026年底在自动化仓储场景部署超过1万台，主要承担分拣、搬运和盘点任务……</div>
+        </div>
+        <div class="x-strip">
+          <span class="x-icon">𝕏</span>
+          Jim Fan（NVIDIA）："Humanoid robots hitting <$100k and being ordered at scale. This is the iPhone moment for embodied AI."
         </div>
         <div class="action-bar">
           <button class="action-btn btn-skip" onclick="doAction('card4','skip')"><span class="btn-icon">⏭</span><span class="btn-label">跳过</span></button>
-          <button class="action-btn btn-useful" onclick="doAction('card4','useful')"><span class="btn-icon">👍</span><span class="btn-label">有价值</span></button>
-          <button class="action-btn btn-star" onclick="doAction('card4','star')"><span class="btn-icon">⭐</span><span class="btn-label">必读</span></button>
-          <button class="action-btn btn-comment" onclick="openComment('card4','Gemini 2.0 Flash 上线 Agentic 工作流')"><span class="btn-icon">💬</span><span class="btn-label">快评</span></button>
+          <button class="action-btn btn-useful" onclick="doAction('card4','useful')"><span class="btn-icon">👍</span><span class="btn-label">点赞</span></button>
+          <button class="action-btn btn-star" onclick="doAction('card4','star')"><span class="btn-icon">⭐</span><span class="btn-label">收藏</span></button>
+          <button class="action-btn btn-comment" onclick="openComment('card4','宇树 G2 Pro 批量仓储部署')"><span class="btn-icon">💬</span><span class="btn-label">评论</span></button>
         </div>
       </div>
 
@@ -705,19 +738,19 @@
         <div class="card-body">
           <div class="card-top">
             <div class="card-source">
-              <div class="source-dot t2"></div>
-              a16z · 10小时前
+              <div class="source-dot t1"></div>
+              Anthropic官方博客 · 9小时前
             </div>
-            <div class="score-badge score-mid">71分</div>
+            <div class="score-badge score-high">79分</div>
           </div>
-          <div class="card-title">2025年企业AI采购决策报告：ROI证明成最大阻碍，采购周期平均缩短至3个月</div>
-          <div class="card-summary">a16z对200+企业AI负责人的调研显示，73%的受访者表示向管理层证明AI投资回报率是最大挑战；但AI试点到规模化的周期已从2023年的9个月缩短至3个月……</div>
+          <div class="card-title">Claude 4 Opus 发布：原生多 Agent 协作，支持并行子任务分解与结果验证</div>
+          <div class="card-summary">Anthropic发布Claude 4 Opus，核心升级为原生多Agent编排能力：单次请求可拆解为并行子Agent，各自执行后汇总验证。在复杂推理基准上超越GPT-4o，企业客户可通过API直接构建自主工作流……</div>
         </div>
         <div class="action-bar">
           <button class="action-btn btn-skip" onclick="doAction('card5','skip')"><span class="btn-icon">⏭</span><span class="btn-label">跳过</span></button>
-          <button class="action-btn btn-useful" onclick="doAction('card5','useful')"><span class="btn-icon">👍</span><span class="btn-label">有价值</span></button>
-          <button class="action-btn btn-star" onclick="doAction('card5','star')"><span class="btn-icon">⭐</span><span class="btn-label">必读</span></button>
-          <button class="action-btn btn-comment" onclick="openComment('card5','2025年企业AI采购决策报告')"><span class="btn-icon">💬</span><span class="btn-label">快评</span></button>
+          <button class="action-btn btn-useful" onclick="doAction('card5','useful')"><span class="btn-icon">👍</span><span class="btn-label">点赞</span></button>
+          <button class="action-btn btn-star" onclick="doAction('card5','star')"><span class="btn-icon">⭐</span><span class="btn-label">收藏</span></button>
+          <button class="action-btn btn-comment" onclick="openComment('card5','Claude 4 Opus 多 Agent 协作')"><span class="btn-icon">💬</span><span class="btn-label">评论</span></button>
         </div>
       </div>
 
@@ -727,23 +760,19 @@
         <div class="card-body">
           <div class="card-top">
             <div class="card-source">
-              <div class="source-dot t1"></div>
-              Karpathy (X) · 14小时前
+              <div class="source-dot t2"></div>
+              a16z · 11小时前
             </div>
             <div class="score-badge score-mid">74分</div>
           </div>
-          <div class="card-title">"Software 3.0 时代，工程师的核心技能将是 Prompt Engineering + System Design"</div>
-          <div class="card-summary">Andrej Karpathy在最新帖子中提出Software 3.0的概念：AI生成代码为主，人类负责意图描述和架构决策，引发大量讨论……</div>
-        </div>
-        <div class="x-strip">
-          <span class="x-icon">𝕏</span>
-          原帖转发 12,400 次 · Sam Altman 点赞
+          <div class="card-title">a16z：2026年零售AI支出报告——个性化推荐 ROI 中位数达 340%，但 70% 企业仍停在 PoC 阶段</div>
+          <div class="card-summary">a16z对350家零售企业的年度调研显示，已规模化部署个性化推荐AI的企业ROI中位数达340%；但仍有70%企业因数据孤岛和组织壁垒停留在概念验证阶段，无法完成从试点到全量的跨越……</div>
         </div>
         <div class="action-bar">
           <button class="action-btn btn-skip" onclick="doAction('card6','skip')"><span class="btn-icon">⏭</span><span class="btn-label">跳过</span></button>
-          <button class="action-btn btn-useful" onclick="doAction('card6','useful')"><span class="btn-icon">👍</span><span class="btn-label">有价值</span></button>
-          <button class="action-btn btn-star" onclick="doAction('card6','star')"><span class="btn-icon">⭐</span><span class="btn-label">必读</span></button>
-          <button class="action-btn btn-comment" onclick="openComment('card6','Software 3.0 时代')"><span class="btn-icon">💬</span><span class="btn-label">快评</span></button>
+          <button class="action-btn btn-useful" onclick="doAction('card6','useful')"><span class="btn-icon">👍</span><span class="btn-label">点赞</span></button>
+          <button class="action-btn btn-star" onclick="doAction('card6','star')"><span class="btn-icon">⭐</span><span class="btn-label">收藏</span></button>
+          <button class="action-btn btn-comment" onclick="openComment('card6','零售AI支出与个性化推荐 ROI 报告')"><span class="btn-icon">💬</span><span class="btn-label">评论</span></button>
         </div>
       </div>
 
@@ -790,7 +819,7 @@
   </div>
   <div class="ann-item">
     <div class="ann-num">2</div>
-    <div class="ann-text"><strong>四种轻量反馈</strong> — 跳过 / 👍有价值 / ⭐必读 / 💬快评；最快的操作是一次点击，不强制写文字</div>
+    <div class="ann-text"><strong>三种反馈高亮显示</strong> — 👍 点赞 / ⭐ 收藏 / 💬 评论；每次一键完成，跳过按钮刻意弱化，引导留下信号</div>
   </div>
   <div class="ann-item">
     <div class="ann-num">3</div>
