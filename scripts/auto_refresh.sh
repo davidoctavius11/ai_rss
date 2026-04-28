@@ -11,6 +11,9 @@ PYTHON="$ROOT_DIR/venv/bin/python3"
 
 echo "[auto] $(date) start"
 
+# Pull latest code from GitHub so new routes / fixes take effect automatically
+git -C "$ROOT_DIR" pull --ff-only origin main 2>&1 | head -5 || echo "[auto] git pull skipped"
+
 # Hardcode venv python — cron doesn't load ~/.zshrc so PATH-based lookups fail
 PY="/Users/ioumvp/ai_rss/venv/bin/python"
 
@@ -36,11 +39,17 @@ $PY criteria_judge.py --threshold 50
 # Skip failures here (e.g., missing/invalid API key) so refresh still completes.
 $PY multi_perspective.py || echo "[auto] multi_perspective skipped (error)"
 
-# 4) Restart service
+# 4) Restart app_simple.py (main public app — port 5005, Cloudflare tunnel target)
+pkill -f "app_simple.py" || true
+sleep 1
+nohup $PY "$ROOT_DIR/app_simple.py" > "$ROOT_DIR/app_simple.log" 2>&1 &
+
+# 5) Restart app_ai_filtered.py (secondary feed service — port 5006)
 pkill -f "app_ai_filtered.py" || true
 nohup $PY app_ai_filtered.py > app_ai_filtered.log 2>&1 &
 
 # 6) Warm the feed cache
+curl -s "http://localhost:5005/jd" >/dev/null || true
 curl -s "http://localhost:5006/feed.xml?refresh=1" >/dev/null || true
 
 echo "[auto] $(date) done"
