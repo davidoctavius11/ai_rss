@@ -2125,11 +2125,71 @@ MATRIX_CELLS = [
 ]
 
 
-def render_jd_matrix(cells_data, top_domains, total_articles):
-    # ── Column config ─────────────────────────────────────────────────────
-    COL_STANDPOINTS = ['关键玩家', '资本动向', '顶尖研究者', '技术社区', '科技媒体', '行业媒体']
-    col_bg  = ['#f5f3ff', '#eff6ff', '#f0fdf4', '#fff7ed', '#fdf2f8', '#f0f9ff']
-    col_hdr = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#9333ea', '#0891b2']
+# ── Maps primary_team name → MATRIX_COLS column label ─────────────────────
+TEAM_TO_COL = {
+    # 增长与流量 — search / rec / traffic acquisition
+    '搜推技术':            '增长与流量',
+    '搜推业务':            '增长与流量',
+    '流量策略':            '增长与流量',
+    # 应用设计 — product / business systems / transaction
+    '交易产研':            '应用设计',
+    '财经':                '应用设计',
+    '商品':                '应用设计',
+    '安全风控':            '应用设计',
+    '数据资产':            '应用设计',
+    '营销&用户系统':       '应用设计',
+    '国内业务':            '应用设计',
+    '本地生活':            '应用设计',
+    '国际业务':            '应用设计',
+    # 交互设计 — UX / design / content product
+    '设计用研':            '交互设计',
+    '营销产品':            '交互设计',
+    '生态产品':            '交互设计',
+    '内容':                '交互设计',
+    # 基础效能 — infra / data / platform engineering
+    '技术保障':            '基础效能',
+    '效能与中间件':        '基础效能',
+    '数据库与存储':        '基础效能',
+    '数据计算':            '基础效能',
+    '商业智能':            '基础效能',
+    '产品架构/技术架构':   '基础效能',
+    # AI技术 — AI/ML / algorithms / model
+    '智能零售':            'AI技术',
+    'AI Infra':            'AI技术',
+    '智能客服':            'AI技术',
+}
+
+# ── Fallback: primary_team → MATRIX_ROWS domain label ─────────────────────
+# Used when FEED_DOMAIN_MAP doesn't cover the feed
+TEAM_TO_DOMAIN = {
+    '智能零售':            '智能零售',
+    '搜推技术':            '智能零售',
+    '搜推业务':            '智能零售',
+    '智能客服':            '智能零售',
+    '交易产研':            '交易服务平台',
+    '本地生活':            '交易服务平台',
+    '财经':                '金融与支付',
+    '安全风控':            '金融与支付',
+    '营销&用户系统':       '广告营销',
+    '营销产品':            '广告营销',
+    '流量策略':            '广告营销',
+    '内容':                '内容直播',
+    '国际业务':            '跨语言与全球化',
+    '国内业务':            '智能零售',
+    '物流与供应链':        '物流与供应链',
+}
+
+
+def render_jd_matrix(cells_data, total_articles):
+    # ── Column config (from MATRIX_COLS) ──────────────────────────────────
+    col_labels = [label for label, _ in MATRIX_COLS]
+    col_subs   = [sub   for _, sub   in MATRIX_COLS]
+    col_bg  = ['#f5f3ff', '#eff6ff', '#f0fdf4', '#fff7ed', '#fdf4e7']
+    col_hdr = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#b45309']
+
+    # ── Row config (from MATRIX_ROWS) ─────────────────────────────────────
+    row_labels = [label for label, _ in MATRIX_ROWS]
+    row_subs   = [sub   for _, sub   in MATRIX_ROWS]
 
     def score_color(s):
         if s is None: return '#9ca3af'
@@ -2140,47 +2200,48 @@ def render_jd_matrix(cells_data, top_domains, total_articles):
     def article_card(row):
         score = row['criteria_score'] or 0
         title = row['article_title'] or ''
-        title_short = title[:52] + '…' if len(title) > 52 else title
+        title_short = title[:50] + '…' if len(title) > 50 else title
         src = JD_SOURCE_MAP.get(row['feed_name'], {}).get('label', row['feed_name'])
         pub = _parse_pub_date(row['published_date']).strftime('%-m/%-d')
         return (
             f'<a href="{row["article_link"]}" target="_blank" style="display:block;'
-            f'text-decoration:none;padding:6px 7px;border-radius:5px;margin-bottom:4px;'
-            f'background:#fff;border:1px solid #e5e7eb;transition:background .1s">'
+            f'text-decoration:none;padding:5px 7px;border-radius:5px;margin-bottom:4px;'
+            f'background:#fff;border:1px solid #e5e7eb">'
             f'<div style="font-size:11px;font-weight:600;color:#111827;line-height:1.35;margin-bottom:3px">'
             f'{title_short}</div>'
             f'<div style="display:flex;align-items:center;justify-content:space-between">'
             f'<span style="font-size:9px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;'
-            f'white-space:nowrap;max-width:100px">{src} · {pub}</span>'
+            f'white-space:nowrap;max-width:105px">{src} · {pub}</span>'
             f'<span style="font-size:10px;font-weight:700;color:{score_color(score)};'
             f'flex-shrink:0;margin-left:4px">{score}</span>'
             f'</div></a>'
         )
 
-    # ── Column headers ────────────────────────────────────────────────────
-    col_hdrs = '<th style="width:100px;border:none;background:transparent"></th>'
-    for i, sp in enumerate(COL_STANDPOINTS):
-        total_in_col = sum(len(cells_data.get((d, sp), [])) for d in top_domains)
+    # ── Column headers ─────────────────────────────────────────────────────
+    col_hdrs = '<th style="width:90px;border:none;background:transparent"></th>'
+    for i, (label, sub) in enumerate(MATRIX_COLS):
+        total_in_col = sum(len(cells_data.get((d, label), [])) for d in row_labels)
         col_hdrs += (
             f'<th style="background:{col_hdr[i]};color:white;padding:10px 8px;'
             f'text-align:center;font-size:11px;border-radius:6px 6px 0 0;'
-            f'min-width:160px;border:none">'
-            f'<div style="font-size:13px;font-weight:700">{sp}</div>'
-            f'<div style="font-size:9px;opacity:.75;margin-top:2px">{total_in_col} 篇</div></th>'
+            f'min-width:170px;border:none">'
+            f'<div style="font-size:13px;font-weight:700">{label}</div>'
+            f'<div style="font-size:9px;opacity:.75;margin-top:2px">{sub}</div>'
+            f'<div style="font-size:9px;opacity:.6;margin-top:1px">{total_in_col} 篇</div></th>'
         )
 
-    # ── Rows ──────────────────────────────────────────────────────────────
+    # ── Rows ───────────────────────────────────────────────────────────────
     rows_html = ''
-    for ri, domain in enumerate(top_domains):
+    for ri, (row_label, row_sub) in enumerate(MATRIX_ROWS):
         row_bg = '#fafafa' if ri % 2 == 0 else '#ffffff'
         cells_html = ''
-        for ci, sp in enumerate(COL_STANDPOINTS):
-            arts = cells_data.get((domain, sp), [])
+        row_total = sum(len(cells_data.get((row_label, cl), [])) for cl in col_labels)
+        for ci, col_label in enumerate(col_labels):
+            arts = cells_data.get((row_label, col_label), [])
             bg = col_bg[ci] if arts else '#f9fafb'
-            border = f'2px solid {col_hdr[ci]}25' if arts else '1px solid #f3f4f6'
+            border = f'2px solid {col_hdr[ci]}22' if arts else '1px solid #f0f0f0'
             if arts:
-                top2 = arts[:2]
-                content = ''.join(article_card(a) for a in top2)
+                content = ''.join(article_card(a) for a in arts[:2])
                 if len(arts) > 2:
                     content += (f'<div style="font-size:9px;color:#9ca3af;text-align:center;'
                                 f'padding:2px 0">+{len(arts)-2} 篇</div>')
@@ -2190,20 +2251,21 @@ def render_jd_matrix(cells_data, top_domains, total_articles):
                 f'<td style="background:{bg};border:{border};padding:7px;'
                 f'vertical-align:top;min-height:60px">{content}</td>'
             )
-        row_count = sum(len(cells_data.get((domain, sp), [])) for sp in COL_STANDPOINTS)
         rows_html += (
             f'<tr>'
             f'<td style="background:{row_bg};padding:10px 8px;vertical-align:middle;'
-            f'border-right:3px solid #e5e7eb;border-top:1px solid #f3f4f6;min-width:100px">'
-            f'<div style="font-size:11px;font-weight:700;color:#1a1a2e">{domain}</div>'
-            f'<div style="font-size:9px;color:#9ca3af;margin-top:3px">{row_count} 篇</div>'
+            f'border-right:3px solid #e5e7eb;border-top:1px solid #f3f4f6;min-width:90px">'
+            f'<div style="font-size:11px;font-weight:700;color:#1a1a2e">{row_label}</div>'
+            f'<div style="font-size:9px;color:#9ca3af;margin-top:2px;line-height:1.3">{row_sub}</div>'
+            f'<div style="font-size:9px;color:#d1d5db;margin-top:3px">{row_total} 篇</div>'
             f'</td>{cells_html}</tr>'
         )
 
     empty_cells = sum(
-        1 for d in top_domains for sp in COL_STANDPOINTS
-        if not cells_data.get((d, sp))
+        1 for rl, _ in MATRIX_ROWS for cl in col_labels
+        if not cells_data.get((rl, cl))
     )
+    total_cells = len(MATRIX_ROWS) * len(MATRIX_COLS)
 
     return f'''<!DOCTYPE html>
 <html lang="zh">
@@ -2222,7 +2284,7 @@ def render_jd_matrix(cells_data, top_domains, total_articles):
   .nav a {{ color:rgba(255,255,255,.65);text-decoration:none;padding:10px 14px;
             font-size:13px;border-bottom:2px solid transparent;display:inline-block }}
   .nav a:hover,.nav a.active {{ color:white;border-bottom-color:#e74c3c }}
-  .wrap {{ max-width:1400px;margin:24px auto;padding:0 20px }}
+  .wrap {{ max-width:1500px;margin:24px auto;padding:0 20px }}
   table {{ border-collapse:separate;border-spacing:3px;width:100% }}
   td,th {{ border-radius:4px }}
   a[href]:hover {{ background:#f0f9ff !important; }}
@@ -2231,22 +2293,28 @@ def render_jd_matrix(cells_data, top_domains, total_articles):
 <body>
 <div class="header">
   <h1>🗺 JD情报矩阵</h1>
-  <div class="meta">近30天 · 评分≥55分 · 按领域 × 立场重新聚合 · 共 {total_articles} 篇</div>
+  <div class="meta">近30天 · 评分≥55分 · 纵轴：14个业务领域 · 横轴：5个团队能力方向 · 共 {total_articles} 篇入库</div>
 </div>
 <div class="nav">
   <a href="/jd">📋 今日简报</a>
   <a href="/jd/all">🗃 全部归档</a>
   <a href="/jd/matrix" class="active">🗺 情报矩阵</a>
   <a href="/jd/sources">📡 情报源</a>
-  <a href="/jd/feed.xml" class="rss" style="margin-left:auto">feed ↗</a>
+  <a href="/jd/feed.xml" style="margin-left:auto;color:rgba(255,255,255,.65);text-decoration:none;padding:10px 14px;font-size:13px">feed ↗</a>
 </div>
 <div class="wrap">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-    <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.8px">
-      行 = 产研板块（来自AI评分的 primary_teams 字段）· 列 = 来源立场
+  <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+    <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px;flex:1;min-width:200px">
+      <div style="font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">纵轴 · 业务领域 Business Domain</div>
+      <div style="font-size:11px;color:#374151">14个京东核心业务领域 — 每行代表一个行业情报需求场景</div>
     </div>
-    <div style="font-size:11px;color:#9ca3af">
-      {len(top_domains)} 个领域 · {len(COL_STANDPOINTS)} 种立场 · {empty_cells} 格暂无文章
+    <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px;flex:1;min-width:200px">
+      <div style="font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">横轴 · 团队能力 Working Sectors</div>
+      <div style="font-size:11px;color:#374151">CTO线5个技术能力方向 — 每列代表一类团队关注的议题</div>
+    </div>
+    <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px;flex:1;min-width:200px">
+      <div style="font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">格子内容 · 实时文章</div>
+      <div style="font-size:11px;color:#374151">每格显示最高分前2篇 · 点击跳转原文 · {total_cells - empty_cells}/{total_cells} 格有覆盖</div>
     </div>
   </div>
   <div style="overflow-x:auto">
@@ -2256,7 +2324,7 @@ def render_jd_matrix(cells_data, top_domains, total_articles):
     </table>
   </div>
   <div style="margin-top:12px;font-size:11px;color:#9ca3af">
-    每格显示最高分前2篇 · 点击标题跳转原文 · 数据实时从数据库读取
+    数据实时从数据库读取 · 领域映射：优先读取来源专属领域，其次由AI评分的 primary_teams 字段推导
   </div>
 </div>
 </body>
@@ -2422,27 +2490,34 @@ def jd_matrix():
     """).fetchall()
     conn.close()
 
-    # Build cells: {(plate, standpoint): [row, ...]}
+    # Build cells: {(domain_row, col_label): [row, ...]}
     cells_data = {}
-    plate_counts = {}
     for row in rows:
         try:
             bd = json.loads(row['criteria'])
             teams = bd.get('primary_teams') or bd.get('relevant_teams') or []
-            plate = TEAM_TO_PLATE.get(teams[0], '') if teams else ''
-            standpoint = STANDPOINT_MAP.get(row['feed_name'], '')
-            if plate and standpoint:
-                key = (plate, standpoint)
+
+            # ── Row dimension: business domain ─────────────────────────────
+            # Priority 1: explicit feed→domain mapping (industry-specific feeds)
+            domain = FEED_DOMAIN_MAP.get(row['feed_name'], '')
+            # Priority 2: derive from primary_teams (general AI/tech feeds)
+            if not domain and teams:
+                domain = TEAM_TO_DOMAIN.get(teams[0], '')
+
+            # ── Column dimension: team capability area ─────────────────────
+            col = ''
+            for t in teams:
+                col = TEAM_TO_COL.get(t, '')
+                if col:
+                    break
+
+            if domain and col:
+                key = (domain, col)
                 cells_data.setdefault(key, []).append(row)
-                plate_counts[plate] = plate_counts.get(plate, 0) + 1
         except Exception:
             pass
 
-    # Top plates by article count — use PLATE_GROUPS order as canonical
-    plate_order = [pname for pname, _, _, *_ in PLATE_GROUPS]
-    top_domains = [p for p in plate_order if p in plate_counts]
-
-    return render_jd_matrix(cells_data, top_domains, len(rows))
+    return render_jd_matrix(cells_data, len(rows))
 
 
 # ── Temporary: Capital & Investor standpoint feed ─────────────────────────
