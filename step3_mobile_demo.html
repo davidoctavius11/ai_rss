@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JD情报 · 专家端 Demo</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+
+  body {
+    font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif;
+    background: #0f172a;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 40px 20px 60px;
+  }
+
+  /* ── Page title ── */
+  .page-title {
+    color: rgba(255,255,255,.45);
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+  .page-subtitle {
+    color: rgba(255,255,255,.2);
+    font-size: 11px;
+    margin-bottom: 36px;
+    text-align: center;
+  }
+
+  /* ── Phone frame ── */
+  .phone {
+    width: 375px;
+    background: #000;
+    border-radius: 48px;
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,.08),
+      0 0 0 10px #1c1c1e,
+      0 0 0 11px rgba(255,255,255,.06),
+      0 40px 80px rgba(0,0,0,.8);
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* notch */
+  .phone::before {
+    content: '';
+    display: block;
+    width: 120px;
+    height: 34px;
+    background: #000;
+    border-radius: 0 0 20px 20px;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+  }
+
+  .screen {
+    background: #f2f2f7;
+    min-height: 812px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── Status bar ── */
+  .status-bar {
+    height: 44px;
+    background: #fff;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 0 24px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #000;
+  }
+  .status-bar .time { font-size: 15px; font-weight: 700; }
+  .status-icons { display: flex; gap: 5px; align-items: center; }
+  .status-icons svg { width: 16px; height: 12px; }
+
+  /* ── App header ── */
+  .app-header {
+    background: #fff;
+    padding: 12px 20px 0;
+    border-bottom: 1px solid #e5e5ea;
+  }
+  .app-header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .app-name {
+    font-size: 17px;
+    font-weight: 700;
+    color: #000;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .today-badge {
+    font-size: 11px;
+    background: #ff3b30;
+    color: white;
+    border-radius: 6px;
+    padding: 1px 6px;
+    font-weight: 600;
+  }
+  .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #5856d6, #007aff);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  /* Progress bar */
+  .progress-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .progress-track {
+    flex: 1;
+    height: 4px;
+    background: #e5e5ea;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #34c759, #30d158);
+    border-radius: 2px;
+    transition: width .4s ease;
+    width: 25%;
+  }
+  .progress-label {
+    font-size: 11px;
+    color: #8e8e93;
+    white-space: nowrap;
+  }
+  .progress-label strong { color: #34c759; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 0;
+  }
+  .tab {
+    font-size: 13px;
+    color: #8e8e93;
+    padding: 8px 14px 10px;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+  .tab.active {
+    color: #007aff;
+    border-bottom-color: #007aff;
+    font-weight: 600;
+  }
+
+  /* ── Feed ── */
+  .feed {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+    max-height: 680px;
+  }
+
+  /* ── Cluster banner ── */
+  .cluster-banner {
+    background: linear-gradient(135deg, #5856d6 0%, #007aff 100%);
+    border-radius: 14px;
+    padding: 14px 16px;
+    color: white;
+  }
+  .cluster-banner .cluster-label {
+    font-size: 10px;
+    opacity: .75;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .cluster-banner .cluster-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+  .cluster-banner .cluster-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 11px;
+    opacity: .8;
+  }
+  .cluster-pill {
+    background: rgba(255,255,255,.2);
+    border-radius: 6px;
+    padding: 2px 7px;
+  }
+
+  /* ── Article card ── */
+  .card {
+    background: #fff;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    transition: transform .15s, opacity .3s;
+    position: relative;
+  }
+  .card.done { opacity: .45; }
+  .card.done .card-body { pointer-events: none; }
+
+  .card-body { padding: 14px 16px 0; }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .card-source {
+    font-size: 11px;
+    color: #8e8e93;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .source-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #007aff;
+    flex-shrink: 0;
+  }
+  .source-dot.t1 { background: #ff9500; }
+  .source-dot.t2 { background: #34c759; }
+
+  .score-badge {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+  .score-high { background: #fff1f0; color: #ff3b30; }
+  .score-mid  { background: #fff8eb; color: #ff9500; }
+
+  .card-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #000;
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+  .card-summary {
+    font-size: 13px;
+    color: #3c3c43;
+    line-height: 1.6;
+    margin-bottom: 10px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* X endorsement strip */
+  .x-strip {
+    background: #f0f9ff;
+    border-top: 1px solid #e0f2fe;
+    padding: 7px 16px;
+    font-size: 11px;
+    color: #0369a1;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .x-strip .x-icon {
+    font-weight: 800;
+    font-size: 12px;
+    color: #0284c7;
+  }
+
+  /* Quick action bar */
+  .action-bar {
+    display: flex;
+    border-top: 1px solid #f2f2f7;
+  }
+  .action-btn {
+    flex: 1;
+    padding: 11px 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    transition: background .12s;
+    border: none;
+    background: transparent;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .action-btn:active { background: #f2f2f7; }
+  .action-btn .btn-icon { font-size: 18px; line-height: 1; }
+  .action-btn .btn-label { font-size: 10px; color: #8e8e93; font-weight: 500; }
+
+  .action-btn.btn-skip .btn-icon { opacity: .4; }
+  .action-btn.btn-useful .btn-label { color: #34c759; }
+  .action-btn.btn-star  .btn-label { color: #ff9500; }
+  .action-btn.btn-comment .btn-label { color: #007aff; }
+
+  /* Done stamp */
+  .done-stamp {
+    display: none;
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    font-size: 20px;
+  }
+  .card.done .done-stamp { display: block; }
+
+  /* ── Quick comment sheet ── */
+  .comment-sheet {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 375px;
+    background: #fff;
+    border-radius: 20px 20px 0 0;
+    padding: 20px 20px 36px;
+    box-shadow: 0 -8px 40px rgba(0,0,0,.18);
+    z-index: 999;
+    animation: slideUp .25s ease;
+  }
+  @keyframes slideUp {
+    from { transform: translateX(-50%) translateY(100%); }
+    to   { transform: translateX(-50%) translateY(0); }
+  }
+  .sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: #d1d1d6;
+    border-radius: 2px;
+    margin: 0 auto 16px;
+  }
+  .sheet-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #000;
+    margin-bottom: 12px;
+  }
+  .sheet-article-ref {
+    font-size: 12px;
+    color: #6d6d72;
+    background: #f2f2f7;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    line-height: 1.5;
+  }
+
+  /* Quick tag chips */
+  .quick-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .quick-tag {
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 16px;
+    border: 1.5px solid #e5e5ea;
+    color: #3c3c43;
+    cursor: pointer;
+    transition: all .12s;
+    background: #fff;
+    user-select: none;
+  }
+  .quick-tag.selected {
+    background: #007aff;
+    border-color: #007aff;
+    color: #fff;
+  }
+
+  .comment-input {
+    width: 100%;
+    border: 1.5px solid #e5e5ea;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #000;
+    resize: none;
+    height: 80px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .comment-input:focus { border-color: #007aff; }
+  .comment-input::placeholder { color: #c7c7cc; }
+
+  .sheet-footer {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .btn-cancel {
+    flex: 1;
+    padding: 12px;
+    border-radius: 12px;
+    border: none;
+    background: #f2f2f7;
+    font-size: 15px;
+    font-weight: 600;
+    color: #3c3c43;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-submit {
+    flex: 2;
+    padding: 12px;
+    border-radius: 12px;
+    border: none;
+    background: #007aff;
+    font-size: 15px;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-submit:active { background: #0062cc; }
+
+  /* ── Toast ── */
+  .toast {
+    display: none;
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,.78);
+    color: white;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 18px;
+    border-radius: 20px;
+    z-index: 9999;
+    white-space: nowrap;
+    animation: fadeToast .2s ease;
+  }
+  @keyframes fadeToast { from { opacity:0; transform: translateX(-50%) scale(.9); } to { opacity:1; transform: translateX(-50%) scale(1); } }
+
+  /* ── Overlay dim ── */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    z-index: 998;
+  }
+
+  /* ── Summary footer ── */
+  .session-footer {
+    background: #fff;
+    border-top: 1px solid #e5e5ea;
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    bottom: 0;
+  }
+  .footer-stat {
+    font-size: 12px;
+    color: #8e8e93;
+  }
+  .footer-stat strong { color: #000; }
+  .btn-rest {
+    font-size: 13px;
+    font-weight: 600;
+    color: #007aff;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-family: inherit;
+  }
+  .btn-rest:active { background: #f2f2f7; }
+
+  /* ── Desktop annotation ── */
+  .annotation {
+    margin-top: 40px;
+    width: 375px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .ann-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .ann-num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.1);
+    color: rgba(255,255,255,.6);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .ann-text {
+    font-size: 12px;
+    color: rgba(255,255,255,.45);
+    line-height: 1.6;
+  }
+  .ann-text strong { color: rgba(255,255,255,.75); }
+</style>
+</head>
+<body>
+
+<div class="page-title">JD情报系统 · 第三步长期方案</div>
+<div class="page-subtitle">内部专家端 · 产品概念 Demo · 碎片时间标注</div>
+
+<!-- Phone -->
+<div class="phone">
+  <div class="screen">
+
+    <!-- Status bar -->
+    <div class="status-bar">
+      <span class="time">9:41</span>
+      <div class="status-icons">
+        <svg viewBox="0 0 17 12" fill="none">
+          <rect x="0" y="3" width="3" height="9" rx="1" fill="black"/>
+          <rect x="4.5" y="2" width="3" height="10" rx="1" fill="black"/>
+          <rect x="9" y="0" width="3" height="12" rx="1" fill="black"/>
+          <rect x="13.5" y="0" width="3" height="12" rx="1" fill="black" opacity=".3"/>
+        </svg>
+        <svg viewBox="0 0 16 12" fill="none">
+          <path d="M8 2.4C5.6 2.4 3.5 3.4 2 5L0 3C2.1 1.1 4.9 0 8 0s5.9 1.1 8 3l-2 2c-1.5-1.6-3.6-2.6-6-2.6z" fill="black"/>
+          <path d="M8 5.6c-1.5 0-2.9.6-3.9 1.6L2 5.1C3.5 3.8 5.6 3 8 3s4.5.8 6 2.1l-2.1 2.1C10.9 6.2 9.5 5.6 8 5.6z" fill="black"/>
+          <circle cx="8" cy="10" r="2" fill="black"/>
+        </svg>
+        <span style="font-size:12px;font-weight:600">
+          <span style="opacity:.35">█</span>███
+        </span>
+      </div>
+    </div>
+
+    <!-- App header -->
+    <div class="app-header">
+      <div class="app-header-top">
+        <div class="app-name">
+          🏪 JD情报
+          <span class="today-badge">今日 8 篇</span>
+        </div>
+        <div class="avatar">李</div>
+      </div>
+      <div class="progress-row">
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill" style="width:25%"></div>
+        </div>
+        <div class="progress-label">已标注 <strong id="doneCount">2</strong> / 8</div>
+      </div>
+      <div class="tabs">
+        <div class="tab active">全部</div>
+        <div class="tab">🔗 收敛热点 3</div>
+        <div class="tab">⭐ 待读 2</div>
+      </div>
+    </div>
+
+    <!-- Feed -->
+    <div class="feed" id="feed">
+
+      <!-- Cluster banner -->
+      <div class="cluster-banner">
+        <div class="cluster-label">🔗 收敛热点 · 3 源独立报道</div>
+        <div class="cluster-title">国内大模型推理成本价格战进入白热化</div>
+        <div class="cluster-meta">
+          <span class="cluster-pill">DeepSeek · 月之暗面 · 阿里云</span>
+          <span class="cluster-pill">收敛分 87</span>
+        </div>
+      </div>
+
+      <!-- Card 1 — already done -->
+      <div class="card done" id="card1">
+        <div class="done-stamp">✅</div>
+        <div class="card-body">
+          <div class="card-top">
+            <div class="card-source">
+              <div class="source-dot t1"></div>
+              DeepSeek官方博客 · 2小时前
+            </div>
+            <div class="score-badge score-high">92分</div>
+          </div>
+          <div class="card-title">DeepSeek-V3 推理 API 降价 80%，每百万 token 仅需 ¥0.27</div>
+          <div class="card-summary">DeepSeek宣布对推理API进行大幅降价，标准输入价格降至每百万token ¥0.27，创下国内大模型最低价记录……</div>
+        </div>
+        <div class="action-bar">
+          <button class="action-btn btn-skip"><span class="btn-icon">⏭</span><span class="btn-label">跳过</span></button>
+          <button class="action-btn btn-useful"><span class="btn-icon">👍</span><span class="btn-label">有价值</span></button>
+          <button class="action-btn btn-star"><span class="btn-icon">⭐</span><span class="btn-label">必读</span></button>
+          <button class="action-btn btn-comment"><span class="btn-icon">💬</span><span class="btn-label">快评</span></button>
+        </div>
+      </div>
+
+      <!-- Card 2 — already done -->
+      <div class="card done" id="card2">
+        <div class="done-stamp">⭐</div>
+        <div class="card-body">
+          <div class="card-top">
+            <div class="card-source">
+              <div class="source-dot t2"></div>
+              36氪 · 4小时前
+            </div>
+            <div class="score-badge score-high">85分</div>
+          </div>
+          <div class="card-title">月之暗面 Kimi 跟进：推理价格腰斩，强调长文档能力护城河</div>
+          <div class="card-summary">Kimi宣布推理API降价50%，同时强调其长达200万token的上下文窗口是差异化竞争优势……</div>
+        </div>
+        <div class="action-bar">
+          <button class="action-btn btn-skip"><span class="btn-icon">⏭</span><span class="btn-label">跳过</span></button>
+          <button class="action-btn btn-useful"><span class="btn-icon">👍</span><span class="btn-label">有价值</span></button>
+          <button class="action-btn btn-star"><span class="btn-icon">⭐</span><span class="btn-label">必读</span></button>
+          <button class="action-btn btn-comment"><span class="btn-icon">💬</span><span class="btn-label">快评</span></button>
+        </div>
+      </div>
+
+      <!-- Card 3 — active -->
+      <div class="card" id="card3">
+        <div class="done-stamp"></div>
+        <div class="card-body">
+          <div class="card-top">
+            <div class="card-source">
+              <div class="source-dot t1"></div>
+              阿里云官方 · 6小时前
+            </div>
+            <div class="score-badge score-high">81分</div>
+          </div>
+          <div class="card-title">通义千问 Qwen2.5-Max 同步降价，阿里云称"AGI时代基础设施应像水电一样普惠"</div>
+          <div class="card-summary">阿里云将Qwen2.5-Max API价格下调至每百万token ¥0.8，张勇在内部信中表示低价是推动AI大规模落地的关键战略……</div>
+        </div>
+        <div class="x-strip">
+          <span class="x-icon">𝕏</span>
+          Karpathy 转推："Race to zero on inference costs is happening faster than expected in China"
+        </div>
+        <div class="action-bar">
+          <button class="action-btn btn-skip" onclick="doAction('card3','skip')"><span class="btn-icon">⏭</span><span class="btn-label">跳过</span></button>
+          <button class="action-btn btn-useful" onclick="doAction('card3','useful')"><span class="btn-icon">👍</span><span class="btn-label">有价值</span></button>
+          <button class="action-btn btn-star" onclick="doAction('card3','star')"><span class="btn-icon">⭐</span><span class="btn-label">必读</span></button>
+          <button class="action-btn btn-comment" onclick="openComment('card3','通义千问 Qwen2.5-Max 同步降价')"><span class="btn-icon">💬</span><span class="btn-label">快评</span></button>
+        </div>
+      </div>
+
+      <!-- Card 4 — active, different cluster -->
+      <div class="card" id="card4">
+        <div class="done-stamp"></div>
+        <div class="card-body">
+          <div class="card-top">
+            <div class="card-source">
+              <div class="source-dot t1"></div>
+              Google DeepMind · 8小时前
+            </div>
+            <div class="score-badge score-high">79分</div>
+          </div>
+          <div class="card-title">Gemini 2.0 Flash 上线多步骤 Agentic 工作流，支持工具调用链与自动重试</div>
+          <div class="card-summary">Google宣布Gemini 2.0 Flash支持原生多步骤Agent执行，可调用Search、Code Execution、Functions，并具备自动错误检测和重试机制……</div>
+        </div>
+        <div class="action-bar">
+          <button class="action-btn btn-skip" onclick="doAction('card4','skip')"><span class="btn-icon">⏭</span><span class="btn-label">跳过</span></button>
+          <button class="action-btn btn-useful" onclick="doAction('card4','useful')"><span class="btn-icon">👍</span><span class="btn-label">有价值</span></button>
+          <button class="action-btn btn-star" onclick="doAction('card4','star')"><span class="btn-icon">⭐</span><span class="btn-label">必读</span></button>
+          <button class="action-btn btn-comment" onclick="openComment('card4','Gemini 2.0 Flash 上线 Agentic 工作流')"><span class="btn-icon">💬</span><span class="btn-label">快评</span></button>
+        </div>
+      </div>
+
+      <!-- Card 5 — active -->
+      <div class="card" id="card5">
+        <div class="done-stamp"></div>
+        <div class="card-body">
+          <div class="card-top">
+            <div class="card-source">
+              <div class="source-dot t2"></div>
+              a16z · 10小时前
+            </div>
+            <div class="score-badge score-mid">71分</div>
+          </div>
+          <div class="card-title">2025年企业AI采购决策报告：ROI证明成最大阻碍，采购周期平均缩短至3个月</div>
+          <div class="card-summary">a16z对200+企业AI负责人的调研显示，73%的受访者表示向管理层证明AI投资回报率是最大挑战；但AI试点到规模化的周期已从2023年的9个月缩短至3个月……</div>
+        </div>
+        <div class="action-bar">
+          <button class="action-btn btn-skip" onclick="doAction('card5','skip')"><span class="btn-icon">⏭</span><span class="btn-label">跳过</span></button>
+          <button class="action-btn btn-useful" onclick="doAction('card5','useful')"><span class="btn-icon">👍</span><span class="btn-label">有价值</span></button>
+          <button class="action-btn btn-star" onclick="doAction('card5','star')"><span class="btn-icon">⭐</span><span class="btn-label">必读</span></button>
+          <button class="action-btn btn-comment" onclick="openComment('card5','2025年企业AI采购决策报告')"><span class="btn-icon">💬</span><span class="btn-label">快评</span></button>
+        </div>
+      </div>
+
+      <!-- Card 6 -->
+      <div class="card" id="card6">
+        <div class="done-stamp"></div>
+        <div class="card-body">
+          <div class="card-top">
+            <div class="card-source">
+              <div class="source-dot t1"></div>
+              Karpathy (X) · 14小时前
+            </div>
+            <div class="score-badge score-mid">74分</div>
+          </div>
+          <div class="card-title">"Software 3.0 时代，工程师的核心技能将是 Prompt Engineering + System Design"</div>
+          <div class="card-summary">Andrej Karpathy在最新帖子中提出Software 3.0的概念：AI生成代码为主，人类负责意图描述和架构决策，引发大量讨论……</div>
+        </div>
+        <div class="x-strip">
+          <span class="x-icon">𝕏</span>
+          原帖转发 12,400 次 · Sam Altman 点赞
+        </div>
+        <div class="action-bar">
+          <button class="action-btn btn-skip" onclick="doAction('card6','skip')"><span class="btn-icon">⏭</span><span class="btn-label">跳过</span></button>
+          <button class="action-btn btn-useful" onclick="doAction('card6','useful')"><span class="btn-icon">👍</span><span class="btn-label">有价值</span></button>
+          <button class="action-btn btn-star" onclick="doAction('card6','star')"><span class="btn-icon">⭐</span><span class="btn-label">必读</span></button>
+          <button class="action-btn btn-comment" onclick="openComment('card6','Software 3.0 时代')"><span class="btn-icon">💬</span><span class="btn-label">快评</span></button>
+        </div>
+      </div>
+
+    </div><!-- /feed -->
+
+    <!-- Bottom bar -->
+    <div class="session-footer">
+      <div class="footer-stat">本次已标注 <strong id="sessionCount">2</strong> 篇</div>
+      <button class="btn-rest">稍后继续 →</button>
+    </div>
+
+  </div><!-- /screen -->
+</div><!-- /phone -->
+
+<!-- Comment sheet -->
+<div class="overlay" id="overlay" onclick="closeComment()"></div>
+<div class="comment-sheet" id="commentSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">💬 快速标注</div>
+  <div class="sheet-article-ref" id="sheetRef">文章标题</div>
+  <div class="quick-tags" id="quickTags">
+    <div class="quick-tag" onclick="toggleTag(this)">对JD搜推有参考价值</div>
+    <div class="quick-tag" onclick="toggleTag(this)">对JD物流有参考价值</div>
+    <div class="quick-tag" onclick="toggleTag(this)">需要CTO关注</div>
+    <div class="quick-tag" onclick="toggleTag(this)">竞品动向</div>
+    <div class="quick-tag" onclick="toggleTag(this)">国内vs国外差异值得关注</div>
+    <div class="quick-tag" onclick="toggleTag(this)">已过时</div>
+  </div>
+  <textarea class="comment-input" id="commentInput" placeholder="可选：补充你的判断（如"这个方案在JD推荐场景里不适用，因为……"）"></textarea>
+  <div class="sheet-footer">
+    <button class="btn-cancel" onclick="closeComment()">取消</button>
+    <button class="btn-submit" onclick="submitComment()">提交标注</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Annotations -->
+<div class="annotation">
+  <div class="ann-item">
+    <div class="ann-num">1</div>
+    <div class="ann-text"><strong>碎片时间触达</strong> — 通勤/咖啡/等会，每次 2 分钟，单手操作，不需要打开电脑</div>
+  </div>
+  <div class="ann-item">
+    <div class="ann-num">2</div>
+    <div class="ann-text"><strong>四种轻量反馈</strong> — 跳过 / 👍有价值 / ⭐必读 / 💬快评；最快的操作是一次点击，不强制写文字</div>
+  </div>
+  <div class="ann-item">
+    <div class="ann-num">3</div>
+    <div class="ann-text"><strong>快评有预设标签</strong> — 一键选"对JD搜推有参考价值"，不用从零开始打字；文字框是可选的</div>
+  </div>
+  <div class="ann-item">
+    <div class="ann-num">4</div>
+    <div class="ann-text"><strong>X 背书信号可见</strong> — Karpathy 转推直接显示在卡片上，帮助专家快速判断信号权重</div>
+  </div>
+  <div class="ann-item">
+    <div class="ann-num">5</div>
+    <div class="ann-text"><strong>进度不清零</strong> — "稍后继续"随时退出，下次打开从未读位置恢复；没有完成率压力</div>
+  </div>
+  <div class="ann-item">
+    <div class="ann-num">6</div>
+    <div class="ann-text"><strong>标注即训练数据</strong> — 每次👍/⭐/💬都是 pairwise label，直接喂给 LambdaRank 模型下一轮训练</div>
+  </div>
+</div>
+
+<script>
+  let doneCount = 2;
+  let sessionCount = 2;
+  let currentCommentCard = null;
+  const total = 8;
+
+  function updateProgress() {
+    document.getElementById('progressFill').style.width = (doneCount/total*100) + '%';
+    document.getElementById('doneCount').textContent = doneCount;
+    document.getElementById('sessionCount').textContent = sessionCount;
+  }
+
+  function doAction(cardId, action) {
+    const card = document.getElementById(cardId);
+    if (card.classList.contains('done')) return;
+
+    const stamps = { useful: '👍', star: '⭐', skip: '↩' };
+    const messages = {
+      useful: '✓ 已标记为有价值',
+      star:   '⭐ 已加入必读清单',
+      skip:   '跳过'
+    };
+
+    card.querySelector('.done-stamp').textContent = stamps[action];
+    card.classList.add('done');
+
+    if (action !== 'skip') {
+      doneCount++;
+      sessionCount++;
+    }
+    updateProgress();
+
+    if (action !== 'skip') showToast(messages[action]);
+
+    // Scroll to next card
+    setTimeout(() => {
+      const cards = document.querySelectorAll('.card:not(.done)');
+      if (cards.length > 0) {
+        cards[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 300);
+  }
+
+  function openComment(cardId, title) {
+    currentCommentCard = cardId;
+    document.getElementById('sheetRef').textContent = title;
+    document.getElementById('commentInput').value = '';
+    document.querySelectorAll('.quick-tag').forEach(t => t.classList.remove('selected'));
+    document.getElementById('commentSheet').style.display = 'block';
+    document.getElementById('overlay').style.display = 'block';
+    setTimeout(() => document.getElementById('commentInput').focus(), 300);
+  }
+
+  function closeComment() {
+    document.getElementById('commentSheet').style.display = 'none';
+    document.getElementById('overlay').style.display = 'none';
+  }
+
+  function submitComment() {
+    if (currentCommentCard) {
+      doAction(currentCommentCard, 'useful');
+      currentCommentCard = null;
+    }
+    closeComment();
+    showToast('💬 标注已提交，感谢！');
+  }
+
+  function toggleTag(el) {
+    el.classList.toggle('selected');
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.display = 'block';
+    setTimeout(() => { t.style.display = 'none'; }, 1800);
+  }
+</script>
+</body>
+</html>
