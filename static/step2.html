@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第二步：智能处理与提炼 — 方法与规则详解</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif;
+    background: #f8fafc;
+    color: #1e293b;
+    line-height: 1.7;
+    padding: 48px 32px;
+  }
+
+  .container { max-width: 860px; margin: 0 auto; }
+
+  /* ── Header ── */
+  .doc-header {
+    margin-bottom: 48px;
+    padding-bottom: 24px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  .doc-header .breadcrumb {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-bottom: 12px;
+    letter-spacing: 0.05em;
+  }
+  .doc-header h1 {
+    font-size: 26px;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 8px;
+    line-height: 1.3;
+  }
+  .doc-header .subtitle {
+    font-size: 14px;
+    color: #64748b;
+  }
+
+  /* ── Phase tabs ── */
+  .phase-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 40px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    overflow: hidden;
+    background: white;
+  }
+  .phase-tab {
+    flex: 1;
+    padding: 16px 20px;
+    text-align: center;
+    border-right: 1px solid #e2e8f0;
+  }
+  .phase-tab:last-child { border-right: none; }
+  .phase-tab .tab-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+  }
+  .phase-tab .tab-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .phase-tab .tab-sub {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 2px;
+  }
+  .tab-short .tab-label { color: #15803d; }
+  .tab-long  .tab-label { color: #1d4ed8; }
+  .tab-short { border-top: 3px solid #22c55e; }
+  .tab-long  { border-top: 3px solid #3b82f6; }
+
+  /* ── Section ── */
+  .section {
+    margin-bottom: 48px;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .section-badge {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 3px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .badge-short { background: #dcfce7; color: #15803d; }
+  .badge-long  { background: #dbeafe; color: #1d4ed8; }
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  /* ── Sub-section ── */
+  .subsection {
+    margin-bottom: 32px;
+  }
+  .subsection h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #374151;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .subsection h3::before {
+    content: '';
+    display: inline-block;
+    width: 3px;
+    height: 14px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .short-section h3::before { background: #22c55e; }
+  .long-section  h3::before { background: #3b82f6; }
+
+  /* ── Content blocks ── */
+  p {
+    font-size: 14px;
+    color: #334155;
+    margin-bottom: 12px;
+    line-height: 1.75;
+  }
+
+  /* Formula box */
+  .formula-box {
+    background: #1e293b;
+    color: #e2e8f0;
+    font-family: "SF Mono", "Fira Code", "Courier New", monospace;
+    font-size: 13px;
+    padding: 16px 20px;
+    border-radius: 8px;
+    margin: 12px 0;
+    line-height: 1.8;
+    overflow-x: auto;
+  }
+  .formula-box .comment { color: #64748b; }
+  .formula-box .key    { color: #93c5fd; }
+  .formula-box .val    { color: #86efac; }
+  .formula-box .op     { color: #fca5a5; }
+
+  /* Info table */
+  .info-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 12px 0;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+  }
+  .info-table th {
+    background: #f8fafc;
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .info-table td {
+    padding: 10px 14px;
+    color: #334155;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+    line-height: 1.6;
+  }
+  .info-table tr:last-child td { border-bottom: none; }
+  .info-table .score-cell {
+    font-weight: 700;
+    font-size: 12px;
+  }
+
+  /* Tag */
+  .tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-right: 4px;
+  }
+  .tag-green  { background: #dcfce7; color: #15803d; }
+  .tag-blue   { background: #dbeafe; color: #1d4ed8; }
+  .tag-orange { background: #ffedd5; color: #c2410c; }
+  .tag-red    { background: #fee2e2; color: #b91c1c; }
+  .tag-gray   { background: #f1f5f9; color: #475569; }
+
+  /* Callout */
+  .callout {
+    padding: 14px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin: 16px 0;
+    line-height: 1.7;
+    display: flex;
+    gap: 12px;
+  }
+  .callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .callout-warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+  .callout-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+  .callout-tip  { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+
+  /* Step flow */
+  .step-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 16px 0;
+  }
+  .step-item {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .step-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    width: 28px;
+  }
+  .step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .step-num-short { background: #dcfce7; color: #15803d; }
+  .step-num-long  { background: #dbeafe; color: #1d4ed8; }
+  .step-line {
+    width: 2px;
+    flex: 1;
+    min-height: 20px;
+    margin: 3px 0;
+  }
+  .line-short { background: #bbf7d0; }
+  .line-long  { background: #bfdbfe; }
+  .step-content {
+    padding: 0 0 20px 0;
+    flex: 1;
+  }
+  .step-content strong {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .step-content p {
+    font-size: 13px;
+    margin-bottom: 0;
+    color: #475569;
+  }
+
+  /* Weight bars */
+  .weight-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .weight-name { width: 120px; color: #374151; flex-shrink: 0; }
+  .weight-bar-bg {
+    flex: 1;
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .weight-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+  }
+  .weight-val {
+    width: 36px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    flex-shrink: 0;
+  }
+
+  /* Divider */
+  .divider {
+    border: none;
+    border-top: 1px solid #e2e8f0;
+    margin: 40px 0;
+  }
+
+  /* Footer */
+  .doc-footer {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 12px;
+    color: #94a3b8;
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Header -->
+<div class="doc-header">
+  <div class="breadcrumb">AI驱动领域情报系统 · 战略工作流 v2 · 第二步详解</div>
+  <h1>智能处理与提炼<br>— 方法与规则详解</h1>
+  <div class="subtitle">覆盖短期两阶段搜推管道的运作机制，以及长期向工业级架构演进的设计路线</div>
+</div>
+
+<!-- Phase tabs -->
+<div class="phase-tabs">
+  <div class="phase-tab tab-short">
+    <div class="tab-label">⚡ 短期方案</div>
+    <div class="tab-title">两阶段搜推管道</div>
+    <div class="tab-sub">当前已上线运行</div>
+  </div>
+  <div class="phase-tab tab-long">
+    <div class="tab-label">🔭 长期方案</div>
+    <div class="tab-title">参考业界标准的搜推架构</div>
+    <div class="tab-sub">需积累专家标注数据后推进</div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     SHORT-TERM
+══════════════════════════════════════════════════ -->
+
+<div class="section short-section">
+  <div class="section-header">
+    <span class="section-badge badge-short">⚡ 短期方案</span>
+    <span class="section-title">两阶段搜推管道：粗召回 → 五维精排 → 多因子重排序</span>
+  </div>
+
+  <!-- Stage 1: Coarse Recall -->
+  <div class="subsection">
+    <h3>阶段一：粗召回（Candidate Generation）</h3>
+    <p>目标是以低成本筛出"值得精排"的候选集，宁可多召回也不能漏。当前规则：</p>
+    <table class="info-table">
+      <thead>
+        <tr>
+          <th>过滤条件</th>
+          <th>当前参数</th>
+          <th>设计理由</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>时效窗口</td>
+          <td><span class="tag tag-gray">最近 30 天</span></td>
+          <td>情报的时效性窗口；超过30天的内容对战略决策参考价值有限</td>
+        </tr>
+        <tr>
+          <td>评分阈值</td>
+          <td><span class="tag tag-gray">criteria_score ≥ 55</span></td>
+          <td>排除明确无关内容，55分以上进入聚类候选；低于此值的内容仍存库，可查询</td>
+        </tr>
+        <tr>
+          <td>候选上限</td>
+          <td><span class="tag tag-gray">最多 150 篇</span></td>
+          <td>LLM聚类上下文限制；150篇分4批处理，每批≤40篇</td>
+        </tr>
+        <tr>
+          <td>来源层级优先</td>
+          <td><span class="tag tag-green">关键玩家</span> <span class="tag tag-green">顶尖研究者</span> 优先入候选集</td>
+          <td>这两类来源无论评分高低，信号质量更可信；避免被媒体聚合文章稀释</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout callout-warn">
+      <span class="callout-icon">⚠️</span>
+      <div><strong>当前瓶颈：</strong>粗召回是纯规则过滤，没有语义理解。一篇高度相关但措辞特殊的文章可能因LLM误判（得分偏低）而被漏掉。这是长期方案中向量召回需要解决的问题。</div>
+    </div>
+  </div>
+
+  <!-- Stage 2: 5-dim Scoring -->
+  <div class="subsection">
+    <h3>阶段二：五维评分精排</h3>
+    <p>召回后的每篇文章，由 DeepSeek 模型对照<strong>京东业务评分规则</strong>打5个维度的分，输出一个总分和打分理由。五个维度的设计逻辑：</p>
+
+    <table class="info-table">
+      <thead>
+        <tr>
+          <th>维度</th>
+          <th>满分</th>
+          <th>衡量内容</th>
+          <th>京东视角的重点</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>相关性</strong><br><span style="font-size:11px;color:#94a3b8">relevance</span></td>
+          <td class="score-cell" style="color:#15803d">30</td>
+          <td>与京东14个商业领域的直接关联程度</td>
+          <td>重点加权：智能零售/物流/搜推/广告/金融；对纯通用AI内容相关性打分偏低</td>
+        </tr>
+        <tr>
+          <td><strong>新颖性</strong><br><span style="font-size:11px;color:#94a3b8">novelty</span></td>
+          <td class="score-cell" style="color:#15803d">25</td>
+          <td>信息增量 — 是新知识、新趋势，还是已知内容的重复</td>
+          <td>RT（转推）硬封顶12分；社区讨论封顶15-20分（有一手测试数据的上浮）</td>
+        </tr>
+        <tr>
+          <td><strong>收敛度</strong><br><span style="font-size:11px;color:#94a3b8">convergence</span></td>
+          <td class="score-cell" style="color:#15803d">20</td>
+          <td>该信号是否已被多个独立来源验证</td>
+          <td>单一来源最高15分；有2个以上独立来源交叉印证，可获满分</td>
+        </tr>
+        <tr>
+          <td><strong>来源层级</strong><br><span style="font-size:11px;color:#94a3b8">source_tier</span></td>
+          <td class="score-cell" style="color:#15803d">15</td>
+          <td>信源本身的权威性和可信度</td>
+          <td>Tier 1（官方博客/论文/政府公告）满分；Tier 3（聚合媒体/转载）≤8分</td>
+        </tr>
+        <tr>
+          <td><strong>时效性</strong><br><span style="font-size:11px;color:#94a3b8">timeliness</span></td>
+          <td class="score-cell" style="color:#15803d">10</td>
+          <td>发布时间 + 内容是否描述当前正在发生的变化</td>
+          <td>48h内发布满分；7天内8分；超过14天且无新增信息4分以下</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="formula-box">
+<span class="comment"># 总分计算（由LLM输出，非加权求和；LLM有整体判断空间±5分）</span>
+<span class="key">total_score</span> = relevance + novelty + convergence + source_tier + timeliness
+<span class="comment"># 满分 100 分；LLM fallback（解析失败时）默认 30 分</span>
+
+<span class="comment"># 特殊规则覆盖（精排后的score二次修正）</span>
+<span class="key">if</span> is_retweet:        novelty = <span class="op">min</span>(novelty, 12)   <span class="comment"># RT硬封顶</span>
+<span class="key">if</span> feed == <span class="val">'jd-manual-report'</span>: relevance *= 1.3   <span class="comment"># 内部报告相关性溢价</span>
+<span class="key">if</span> feed == <span class="val">'jd-manual-community'</span>:
+    novelty_cap = 20 <span class="key">if</span> has_evidence_markers <span class="key">else</span> 15   <span class="comment"># 社区信号封顶</span>
+    <span class="comment"># evidence_markers = ['实测','内测','benchmark','我们用','我发现']</span>
+    </div>
+
+    <div class="callout callout-tip">
+      <span class="callout-icon">💡</span>
+      <div><strong>评分规则文件：</strong>LLM的打分依据来自 <code>jd_scoring_rules.md</code>，完整定义了14个业务领域的相关性权重和各维度的评分细则。评分规则可以独立修改而无需改代码。</div>
+    </div>
+  </div>
+
+  <!-- Stage 3: Re-ranking -->
+  <div class="subsection">
+    <h3>阶段三：多因子重排序</h3>
+    <p>LLM给出基础分后，系统在Python层叠加三个额外信号进行重排序：</p>
+
+    <div class="step-flow">
+      <div class="step-item">
+        <div class="step-left">
+          <div class="step-num step-num-short">1</div>
+          <div class="step-line line-short"></div>
+        </div>
+        <div class="step-content">
+          <strong>X（Twitter）背书乘数</strong>
+          <p>若文章被X关键人物转发/分享，文章的基础分乘以背书权重之和。例如：Karpathy（×0.30）+ Sam Altman（×0.25）共同转发同一篇文章，基础分60分 → 60 × (1 + 0.55) = 93分。上限2.0×（即最高翻倍）。权重由 <code>X_ENDORSER_WEIGHTS</code> 字典维护，按认知权威性分级（0.10–0.30）。</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-left">
+          <div class="step-num step-num-short">2</div>
+          <div class="step-line line-short"></div>
+        </div>
+        <div class="step-content">
+          <strong>收敛聚类加权</strong>
+          <p>把高分文章（≥55分）送入DeepSeek做收敛聚类：找出2篇以上、来自不同立场视角、独立指向同一底层趋势的文章组合。聚类内文章的得分在展示层会被聚类收敛分加权（聚类越强、立场越多样，权重越高）。聚类算法依赖三个乘数：立场多样性、高价值立场出现次数、Tier1文章存在与否。</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-left">
+          <div class="step-num step-num-short">3</div>
+        </div>
+        <div class="step-content">
+          <strong>立场多样性加权</strong>
+          <p>相同话题下，若同时有"资本动向 + 顶尖研究者 + 关键玩家"三类高价值立场，其收敛分的乘数系数累加（每多一个高价值立场 +8%，每多一个普通立场 +12%）。纯科技媒体报道群不算收敛，不加分。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="formula-box">
+<span class="comment"># 聚类收敛分公式</span>
+<span class="key">base</span>        = avg(article_scores)
+<span class="key">sp_mult</span>     = 1.0 + 0.12 × (unique_standpoints - 1) + 0.08 × hv_standpoints
+<span class="key">tier1_mult</span>  = 1.2 <span class="key">if</span> any_tier1 <span class="key">else</span> 1.0
+<span class="key">recency_mult</span>= 1.3 (≤7d) | 1.15 (≤14d) | 1.0 (older)
+<span class="key">size_mult</span>   = 1.0 + 0.05 × max(0, cluster_size - 2)
+<span class="key">x_mult</span>      = min(1.30, 1.0 + 0.08 × endorsed_articles + 0.04 × total_endorsers)
+
+<span class="key">convergence_score</span> = <span class="op">min</span>(100, base × sp_mult × tier1_mult × recency_mult × size_mult × x_mult)
+    </div>
+  </div>
+
+  <!-- Bottleneck -->
+  <div class="subsection">
+    <h3>当前方案的局限性</h3>
+    <table class="info-table">
+      <thead><tr><th>问题</th><th>具体表现</th><th>长期方案如何解决</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>权重人工设定</td>
+          <td>5个维度的满分分配（30/25/20/15/10）是经验判断，未经数据验证</td>
+          <td>Learning to Rank模型从专家反馈数据中学习最优权重</td>
+        </tr>
+        <tr>
+          <td>通用性框架</td>
+          <td>LLM不知道"京东搜推团队今年在押注什么"，无法针对内部战略优先级评分</td>
+          <td>专家反馈标注注入业务语境，训练数据本身携带京东视角</td>
+        </tr>
+        <tr>
+          <td>召回是硬阈值</td>
+          <td>一篇措辞冷僻但高度相关的文章可能被LLM低估（得分&lt;55）而进不了聚类</td>
+          <td>Dense Retrieval向量召回补充语义相似度，不依赖LLM评分</td>
+        </tr>
+        <tr>
+          <td>X背书匹配率低</td>
+          <td>当前只有约3篇文章被匹配到DB中的推文链接（外链文章未入库）</td>
+          <td>扩大外链文章抓取范围；建立URL-to-article索引</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ══════════════════════════════════════════════════
+     LONG-TERM
+══════════════════════════════════════════════════ -->
+
+<div class="section long-section">
+  <div class="section-header">
+    <span class="section-badge badge-long">🔭 长期方案</span>
+    <span class="section-title">参考业界标准：两路召回 → LTR精排 → 差异化多目标</span>
+  </div>
+
+  <p>短期方案的核心问题是"权重是猜出来的"。长期方案的根本改变是：<strong>让系统从专家反馈数据中学习权重</strong>，使排序模型真正理解"什么样的文章对京东CTO团队有战略价值"。</p>
+
+  <!-- Dual recall -->
+  <div class="subsection">
+    <h3>粗召回升级：稀疏检索 + 稠密向量检索双路并行</h3>
+    <p>当前的规则过滤（阈值+时效）只看LLM打的分，无法发现"分数低但语义高度相关"的文章。两路并行可以覆盖不同类型的相关性：</p>
+
+    <table class="info-table">
+      <thead>
+        <tr>
+          <th style="width:140px">召回策略</th>
+          <th>工作原理</th>
+          <th>擅长捕捉</th>
+          <th>局限</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>BM25 稀疏检索</strong></td>
+          <td>基于TF-IDF关键词加权匹配，针对JD战略词库（搜推/物流/具身智能/BNPL…）的命中率打分</td>
+          <td>精确术语、产品名称、特定公司名、政策法规条文</td>
+          <td>同义词、跨语言表达（英文提到"recommendation system"但中文索引）</td>
+        </tr>
+        <tr>
+          <td><strong>Dense Retrieval 向量召回</strong></td>
+          <td>用领域embedding模型（如BGE-M3）将文章和查询向量化，通过ANN近邻搜索召回语义相近候选</td>
+          <td>隐式相关、跨语言语义、新概念（如"vibe coding"与"开发效率"的关联）</td>
+          <td>需要维护向量索引；embedding模型需要定期更新以捕捉新概念</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>两路召回的结果通过 <strong>倒数排名融合（Reciprocal Rank Fusion, RRF）</strong> 合并，生成统一候选集送入精排阶段。RRF是业界通行的无需参数调整的融合方法。</p>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">📐</span>
+      <div><strong>实现路径：</strong>向量索引可使用 FAISS（本地）或 Qdrant（服务化），embedding 模型推荐 BGE-M3（支持中英文混合），与现有 SQLite 数据库并列存储。迁移到向量召回无需重写现有评分逻辑，属于并行追加。</div>
+    </div>
+  </div>
+
+  <!-- LTR -->
+  <div class="subsection">
+    <h3>精排升级：Learning to Rank（LambdaRank）</h3>
+    <p>LTR是搜索引擎和推荐系统中的标准精排框架。核心思想：<strong>不预设权重，而是从带标注的"哪篇比哪篇更重要"数据中，学习出一个最优排序函数</strong>。</p>
+
+    <div class="step-flow">
+      <div class="step-item">
+        <div class="step-left">
+          <div class="step-num step-num-long">1</div>
+          <div class="step-line line-long"></div>
+        </div>
+        <div class="step-content">
+          <strong>特征工程 — 每篇文章的特征向量</strong>
+          <p>文章的各维度评分（5个维度）+ 来源元数据（tier、standpoint）+ 话题embedding相似度 + X背书权重 + 时效衰减系数 + 历史上相似文章被专家标注为"有价值"的比例。</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-left">
+          <div class="step-num step-num-long">2</div>
+          <div class="step-line line-long"></div>
+        </div>
+        <div class="step-content">
+          <strong>训练数据 — 专家反馈标注（来自第三步）</strong>
+          <p>专家在 JoySpace 文档或长期RSS平台上的行为：标注"有价值/无关/领域错误"，以及转发给产研团队的行为，构成 pairwise 标注对：<em>"文章A比文章B对我们更重要"</em>。每积累约200条有效标注即可训练初版模型。</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-left">
+          <div class="step-num step-num-long">3</div>
+          <div class="step-line line-long"></div>
+        </div>
+        <div class="step-content">
+          <strong>模型选型 — LightGBM with LambdaRank objective</strong>
+          <p>LambdaRank是目前业界最主流的LTR算法之一（微软、谷歌均有使用），基于LightGBM实现可在CPU上秒级训练，无需GPU。训练完成后推理速度极快，可替换现有手工multiplier层。</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-left">
+          <div class="step-num step-num-long">4</div>
+        </div>
+        <div class="step-content">
+          <strong>迭代节奏 — 月度模型更新</strong>
+          <p>每月汇总新增专家标注，重新训练模型。通过A/B测试或离线指标（NDCG@10）评估新模型效果，确认提升后替换线上版本。早期（标注量&lt;200条）维持现有规则体系，模型作为shadow scorer并行跑验证。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="formula-box">
+<span class="comment"># LambdaRank 目标函数（概念）</span>
+<span class="comment"># 对每对文章(i, j)，若专家标注i比j更重要，则最大化以下：</span>
+<span class="key">λ_ij</span> = -<span class="op">∂NDCG</span>/<span class="op">∂s_i</span> × σ(s_j - s_i)
+<span class="comment"># NDCG = 归一化折损累积增益，是信息检索领域标准排序质量指标</span>
+<span class="comment"># 相比Pointwise（每篇单独打分），LambdaRank直接优化排序结果</span>
+    </div>
+  </div>
+
+  <!-- Multi-module -->
+  <div class="subsection">
+    <h3>差异化排序目标 — 各产研模块独立排序策略</h3>
+    <p>物流团队和广告团队关注的信号截然不同，用同一套排序权重会导致"对谁都不够好"。长期方案支持<strong>多头排序</strong>：共享底层特征提取，每个业务模块有独立的排序打分头。</p>
+
+    <table class="info-table">
+      <thead><tr><th>产研模块</th><th>优先信号类型</th><th>差异化特征</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="tag tag-green">零售与交易</span></td>
+          <td>搜推算法进展、转化率优化、个性化生成</td>
+          <td>相关性权重中 智能零售/交易平台 域加权×1.4</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-green">物流与机器人</span></td>
+          <td>具身智能突破、仓储自动化、路径规划</td>
+          <td>具身智能/物流域加权×1.5；时效性更重要（物流需要快速响应）</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-blue">营销与增长</span></td>
+          <td>多模态广告技术、内容生成、用户增长</td>
+          <td>广告营销域加权×1.3；X背书来自投资人账号时额外加权</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-blue">金融科技</span></td>
+          <td>支付监管政策、BNPL进展、风控AI</td>
+          <td>政策与专利立场权重更高；国内政策来源tier提升</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-gray">前沿技术</span></td>
+          <td>基础模型能力演进、算力效率、安全对齐</td>
+          <td>新颖性权重提升（关注前沿突破而非成熟应用）；顶尖研究者背书更重要</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout callout-tip">
+      <span class="callout-icon">🤝</span>
+      <div><strong>与京东内部算法团队的协同机会：</strong>上述架构（双路召回、LambdaRank精排、多目标融合）与业界主流推荐系统架构一致，可直接与京东搜推算法团队对齐技术选型，避免重复建设，并借助内部基础设施加速落地。</div>
+    </div>
+  </div>
+
+  <!-- Flywheel -->
+  <div class="subsection">
+    <h3>判断力飞轮 — 系统如何越用越准</h3>
+    <p>专家反馈 → 训练数据 → 精排模型迭代 → 排序结果更贴近业务 → 专家信任度提升 → 反馈质量和数量提升。这个正向循环的关键触发点是<strong>专家愿意持续反馈</strong>，而这取决于系统展示的内容是否真的有用。因此初期宁可阈值宽松（让更多内容进入专家视野），也不要过于保守（专家看了一堆无关内容后直接放弃）。</p>
+
+    <div class="formula-box">
+<span class="comment"># 飞轮各环节 KPI 建议</span>
+<span class="key">反馈收集阶段</span>：每周专家有效标注 ≥ 10 条（JoySpace文档点评）
+<span class="key">初版模型上线</span>：累积 200 条 pairwise 标注后训练
+<span class="key">模型质量指标</span>：NDCG@10 在验证集上优于规则基线 ≥ 5%
+<span class="key">专家信任指标</span>：专家打开简报后点击阅读原文比率 ≥ 30%
+<span class="key">业务落地指标</span>：每月由情报触发的产研跟进议题 ≥ 3 个
+    </div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="doc-footer">
+  <span>AI驱动领域情报系统 · 内部文档 · v1.0</span>
+  <span>如有技术问题或规则修改需求，联系 CTO办公室情报团队</span>
+</div>
+
+</div>
+</body>
+</html>
