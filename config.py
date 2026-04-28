@@ -646,6 +646,82 @@ RSS_FEEDS = [
         可接受：算法创新的工程意义解读、AI产业政策分析。
         严格排除：无技术细节的PR稿、纯学术理论综述。"""
     },
+    # ========== 新增：跨境电商 × AI重塑供应链 (2026.04.14) ==========
+    # B现在是跨境电商从业者，并计划开自己的店。
+    # 核心关切：AI如何改造跨境电商各环节；平台规则变化；选品与运营；关税政策。
+    {
+        "name": "品玩PingWest（电商）",
+        "url": "https://www.pingwest.com/feed",
+        "enabled": True,
+        "priority": "high",
+        "criteria": """重点关注：跨境电商平台（Temu、SHEIN、亚马逊、TikTok Shop）的战略动向、运营规则变化、中国卖家出海案例。
+        可接受：AI在跨境电商选品、定价、广告投放、客服中的具体应用。
+        严格排除：与跨境电商无关的泛科技新闻。"""
+    },
+    {
+        "name": "36氪出海",
+        "url": "https://rss.36kr.com/feeds/topics/cross-border",
+        "enabled": True,
+        "priority": "high",
+        "criteria": """重点关注：中国企业出海方法论、跨境电商平台生态、独立站vs平台的权衡、供应链数字化。
+        可接受：品牌出海案例、物流/支付/合规等基础设施变化。
+        严格排除：无跨境视角的国内电商新闻。"""
+    },
+    {
+        "name": "亿邦动力（跨境）",
+        "url": "https://www.ebrun.com/rss.xml",
+        "enabled": True,
+        "priority": "high",
+        "criteria": """重点关注：跨境电商行业深度报道——卖家实战案例、平台政策解读（亚马逊、速卖通、Temu）、关税与合规动态、AI工具在电商运营中的落地。
+        可接受：跨境服务商（ERP、物流、仓储、支付）的产品动向与市场格局。
+        严格排除：国内电商（淘宝/拼多多国内业务）、与跨境无关的零售新闻。"""
+    },
+    {
+        "name": "Practical Ecommerce",
+        "url": "https://www.practicalecommerce.com/feed",
+        "enabled": True,
+        "priority": "medium",
+        "criteria": """重点关注：独立站运营实战（Shopify/WooCommerce）、AI在电商营销/内容生成/客服中的具体应用、转化率优化、数据分析工具。
+        可接受：流量获取（SEO/社交媒体广告）、邮件营销、库存管理的AI化实践。
+        严格排除：无AI视角的基础电商教程、纯工具广告。"""
+    },
+    {
+        "name": "Shopify Blog",
+        "url": "https://www.shopify.com/blog.atom",
+        "enabled": True,
+        "priority": "medium",
+        "criteria": """重点关注：独立站建设与增长方法论、AI功能更新（Shopify Magic等）、全球化/多语言店铺运营、支付与物流生态。
+        可接受：成功独立站的商业模式案例、平台新功能的商业影响分析。
+        严格排除：纯产品营销稿、无实质内容的功能通告。"""
+    },
+    {
+        "name": "Digital Commerce 360",
+        "url": "https://www.digitalcommerce360.com/feed/",
+        "enabled": True,
+        "priority": "medium",
+        "criteria": """重点关注：电商行业数据与趋势（市场份额、增长率、消费者行为）、AI对零售与电商格局的重塑、跨境物流与供应链创新。
+        可接受：B2B电商、全渠道零售的数字化转型案例。
+        严格排除：无数据支撑的泛零售资讯。"""
+    },
+    {
+        "name": "Jungle Scout Blog",
+        "url": "https://www.junglescout.com/blog/feed/",
+        "enabled": True,
+        "priority": "medium",
+        "criteria": """重点关注：亚马逊卖家数据驱动选品方法、AI工具在亚马逊运营中的应用（关键词/竞品/定价）、亚马逊平台规则变化与应对策略。
+        可接受：亚马逊市场趋势分析、新兴类目机会识别。
+        严格排除：无数据支撑的泛亚马逊运营技巧。"""
+    },
+    {
+        "name": "Modern Retail",
+        "url": "https://www.modernretail.co/feed/",
+        "enabled": True,
+        "priority": "medium",
+        "criteria": """重点关注：AI重塑零售供应链与消费者体验的真实案例、DTC品牌的增长与挑战、电商平台竞争格局（Temu/SHEIN/亚马逊/TikTok Shop）的分析。
+        可接受：实体零售数字化的深度报道、零售科技投资动向。
+        严格排除：纯品牌广告、无商业分析的产品评测。"""
+    },
+    # ========== 跨境电商结束 ==========
 
 ]
 

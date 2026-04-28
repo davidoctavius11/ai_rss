@@ -7,7 +7,7 @@ from openai import OpenAI
 class DeepSeekFilter:
     """使用DeepSeek API筛选文章"""
     
-    def __init__(self, api_key=None, model="deepseek-chat"):
+    def __init__(self, api_key=None, model="deepseek-v4-pro"):
         self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
         if not self.api_key:
             raise ValueError("❌ 未找到DeepSeek API Key")

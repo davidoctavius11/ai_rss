@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Auto refresh pipeline: fetch -> fulltext -> judge -> restart app -> warm feed
+# Auto refresh pipeline (横纵研究所版):
+# fetch → fulltext → judge → identify research objects → restart app → warm feed
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+
+PYTHON="$ROOT_DIR/venv/bin/python3"
 
 echo "[auto] $(date) start"
 
@@ -37,7 +40,7 @@ $PY multi_perspective.py || echo "[auto] multi_perspective skipped (error)"
 pkill -f "app_ai_filtered.py" || true
 nohup $PY app_ai_filtered.py > app_ai_filtered.log 2>&1 &
 
-# 5) Warm the feed
+# 6) Warm the feed cache
 curl -s "http://localhost:5006/feed.xml?refresh=1" >/dev/null || true
 
 echo "[auto] $(date) done"
