@@ -807,9 +807,9 @@ def render_jd_browser(rows, title, feed_url, active_team=None, shortlist=False, 
   <div class="meta">京东集团CTO部门 · 总裁简报原材料 · 按情报分排序</div>
 </div>
 <div class="nav">
-  <a href="/jd" class="{active_home}">📋 简报候选</a>
+  <a href="/jd" class="{active_home}">📋 今日简报</a>
   <a href="/jd/all" class="{active_archive}">🗃 全部归档</a>
-  <a href="/jd/intelligence">🔗 收敛分析</a>
+
   <a href="/jd/paste">✍️ 人工投稿</a>
   <a href="/jd/matrix">🗺 情报矩阵</a>
   <a href="/jd/sources">📡 情报源</a>
@@ -1122,18 +1122,6 @@ def _render_briefing(clusters, lone_rows, last_run):
         '<div style="padding:20px;text-align:center;font-size:12px;color:#9ca3af">暂无孤立高分信号</div>'
     )
 
-    # Sidebar: team filter
-    team_sidebar_rows = []
-    team_sidebar_rows.append('<a href="/jd" style="font-size:11px;color:#1a1a2e;font-weight:700;text-decoration:none;display:block;margin-bottom:8px">全部团队</a>')
-    for plate_name, plate_teams, plate_color, *_ in PLATE_GROUPS:
-        team_sidebar_rows.append(
-            f'<div style="font-size:10px;color:#9ca3af;font-weight:600;margin:10px 0 4px;text-transform:uppercase;letter-spacing:.4px">{plate_name}</div>'
-        )
-        for t in plate_teams:
-            team_sidebar_rows.append(
-                f'<a href="/jd?team={t}" style="font-size:11px;color:{plate_color};text-decoration:none;display:block;padding:2px 0">{t}</a>'
-            )
-
     run_ts = f'上次分析 {last_run}' if last_run else '尚未运行 — 执行 python3 jd_intelligence_synthesis.py'
 
     return f"""<!DOCTYPE html>
@@ -1167,7 +1155,7 @@ def _render_briefing(clusters, lone_rows, last_run):
 <div class="nav">
   <a href="/jd" class="active">📋 今日简报</a>
   <a href="/jd/all">🗃 全部归档</a>
-  <a href="/jd/intelligence">🔗 收敛分析</a>
+
   <a href="/jd/paste">✍️ 人工投稿</a>
   <a href="/jd/matrix">🗺 情报矩阵</a>
   <a href="/jd/sources">📡 情报源</a>
@@ -1208,10 +1196,6 @@ def _render_briefing(clusters, lone_rows, last_run):
   </div>
 
   <div class="sidebar">
-    <div class="sidebar-card">
-      <div class="sidebar-title">🏢 按团队筛选</div>
-      {''.join(team_sidebar_rows)}
-    </div>
     <div class="sidebar-card">
       <div class="sidebar-title">📐 收敛分说明</div>
       <div style="font-size:11px;color:#6b7280;line-height:1.7">
@@ -1515,9 +1499,9 @@ def jd_intelligence():
   <div class="meta">多源独立验证 · 底层趋势识别 · CTO战略合成</div>
 </div>
 <div class="nav">
-  <a href="/jd">📋 简报候选</a>
+  <a href="/jd">📋 今日简报</a>
   <a href="/jd/all">🗃 全部归档</a>
-  <a href="/jd/intelligence" class="active">🔗 收敛分析</a>
+
   <a href="/jd/paste">✍️ 人工投稿</a>
   <a href="/jd/matrix">🗺 情报矩阵</a>
   <a href="/jd/sources">📡 情报源</a>
@@ -1693,7 +1677,7 @@ def jd_paste():
 <div class="nav">
   <a href="/jd">📋 今日简报</a>
   <a href="/jd/all">🗃 全部归档</a>
-  <a href="/jd/intelligence">🔗 收敛分析</a>
+
   <a href="/jd/paste" class="active">✍️ 人工投稿</a>
   <a href="/jd/matrix">🗺 情报矩阵</a>
   <a href="/jd/sources">📡 情报源</a>
@@ -1992,7 +1976,7 @@ function copyUrl(url, btn) {{
   <div class="meta">京东集团CTO部门 · 总裁简报原材料</div>
 </div>
 <div class="nav">
-  <a href="/jd">📋 简报候选</a>
+  <a href="/jd">📋 今日简报</a>
   <a href="/jd/all">🗃 全部归档</a>
   <a href="/jd/matrix">🗺 情报矩阵</a>
   <a href="/jd/sources">📡 情报源</a>
@@ -2242,7 +2226,7 @@ def render_jd_matrix():
   <div class="meta">京东集团CTO部门 · 总裁简报原材料 · 按情报分排序</div>
 </div>
 <div class="nav">
-  <a href="/jd">📋 简报候选</a>
+  <a href="/jd">📋 今日简报</a>
   <a href="/jd/all">🗃 全部归档</a>
   <a href="/jd/matrix" class="active">🗺 情报矩阵</a>
   <a href="/jd/sources">📡 情报源</a>
@@ -2452,7 +2436,7 @@ def jd_capital():
   </div>
 </div>
 <div class="nav">
-  <a href="/jd">← 返回简报候选</a>
+  <a href="/jd">← 返回今日简报</a>
   <a href="/jd/all">全部归档</a>
 </div>
 <div class="wrap">
@@ -3138,7 +3122,7 @@ def jd_sources():
   <div class="meta">京东集团CTO部门 · 情报源全景 · Layer 1 原材料收集</div>
 </div>
 <div class="nav">
-  <a href="/jd">📋 简报候选</a>
+  <a href="/jd">📋 今日简报</a>
   <a href="/jd/all">🗃 全部归档</a>
   <a href="/jd/matrix">🗺 情报矩阵</a>
   <a href="/jd/sources" class="active">📡 情报源</a>
