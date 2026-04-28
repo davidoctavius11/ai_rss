@@ -2125,7 +2125,145 @@ MATRIX_CELLS = [
 ]
 
 
-def render_jd_matrix():
+def render_jd_matrix(cells_data, top_domains, total_articles):
+    # ── Column config ─────────────────────────────────────────────────────
+    COL_STANDPOINTS = ['关键玩家', '资本动向', '顶尖研究者', '技术社区', '科技媒体', '行业媒体']
+    col_bg  = ['#f5f3ff', '#eff6ff', '#f0fdf4', '#fff7ed', '#fdf2f8', '#f0f9ff']
+    col_hdr = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#9333ea', '#0891b2']
+
+    def score_color(s):
+        if s is None: return '#9ca3af'
+        if s >= 75: return '#dc2626'
+        if s >= 55: return '#d97706'
+        return '#6b7280'
+
+    def article_card(row):
+        score = row['criteria_score'] or 0
+        title = row['article_title'] or ''
+        title_short = title[:52] + '…' if len(title) > 52 else title
+        src = JD_SOURCE_MAP.get(row['feed_name'], {}).get('label', row['feed_name'])
+        pub = _parse_pub_date(row['published_date']).strftime('%-m/%-d')
+        return (
+            f'<a href="{row["article_link"]}" target="_blank" style="display:block;'
+            f'text-decoration:none;padding:6px 7px;border-radius:5px;margin-bottom:4px;'
+            f'background:#fff;border:1px solid #e5e7eb;transition:background .1s">'
+            f'<div style="font-size:11px;font-weight:600;color:#111827;line-height:1.35;margin-bottom:3px">'
+            f'{title_short}</div>'
+            f'<div style="display:flex;align-items:center;justify-content:space-between">'
+            f'<span style="font-size:9px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;'
+            f'white-space:nowrap;max-width:100px">{src} · {pub}</span>'
+            f'<span style="font-size:10px;font-weight:700;color:{score_color(score)};'
+            f'flex-shrink:0;margin-left:4px">{score}</span>'
+            f'</div></a>'
+        )
+
+    # ── Column headers ────────────────────────────────────────────────────
+    col_hdrs = '<th style="width:100px;border:none;background:transparent"></th>'
+    for i, sp in enumerate(COL_STANDPOINTS):
+        total_in_col = sum(len(cells_data.get((d, sp), [])) for d in top_domains)
+        col_hdrs += (
+            f'<th style="background:{col_hdr[i]};color:white;padding:10px 8px;'
+            f'text-align:center;font-size:11px;border-radius:6px 6px 0 0;'
+            f'min-width:160px;border:none">'
+            f'<div style="font-size:13px;font-weight:700">{sp}</div>'
+            f'<div style="font-size:9px;opacity:.75;margin-top:2px">{total_in_col} 篇</div></th>'
+        )
+
+    # ── Rows ──────────────────────────────────────────────────────────────
+    rows_html = ''
+    for ri, domain in enumerate(top_domains):
+        row_bg = '#fafafa' if ri % 2 == 0 else '#ffffff'
+        cells_html = ''
+        for ci, sp in enumerate(COL_STANDPOINTS):
+            arts = cells_data.get((domain, sp), [])
+            bg = col_bg[ci] if arts else '#f9fafb'
+            border = f'2px solid {col_hdr[ci]}25' if arts else '1px solid #f3f4f6'
+            if arts:
+                top2 = arts[:2]
+                content = ''.join(article_card(a) for a in top2)
+                if len(arts) > 2:
+                    content += (f'<div style="font-size:9px;color:#9ca3af;text-align:center;'
+                                f'padding:2px 0">+{len(arts)-2} 篇</div>')
+            else:
+                content = '<span style="color:#d1d5db;font-size:10px">—</span>'
+            cells_html += (
+                f'<td style="background:{bg};border:{border};padding:7px;'
+                f'vertical-align:top;min-height:60px">{content}</td>'
+            )
+        row_count = sum(len(cells_data.get((domain, sp), [])) for sp in COL_STANDPOINTS)
+        rows_html += (
+            f'<tr>'
+            f'<td style="background:{row_bg};padding:10px 8px;vertical-align:middle;'
+            f'border-right:3px solid #e5e7eb;border-top:1px solid #f3f4f6;min-width:100px">'
+            f'<div style="font-size:11px;font-weight:700;color:#1a1a2e">{domain}</div>'
+            f'<div style="font-size:9px;color:#9ca3af;margin-top:3px">{row_count} 篇</div>'
+            f'</td>{cells_html}</tr>'
+        )
+
+    empty_cells = sum(
+        1 for d in top_domains for sp in COL_STANDPOINTS
+        if not cells_data.get((d, sp))
+    )
+
+    return f'''<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JD情报矩阵</title>
+<style>
+  * {{ box-sizing:border-box }}
+  body {{ margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+          background:#f3f4f6;color:#1a1a2e }}
+  .header {{ background:linear-gradient(135deg,#1a1a2e,#16213e);color:white;padding:20px 32px }}
+  .header h1 {{ margin:0 0 4px;font-size:20px;font-weight:700 }}
+  .header .meta {{ font-size:12px;opacity:.65 }}
+  .nav {{ background:#16213e;padding:0 32px;display:flex;align-items:center }}
+  .nav a {{ color:rgba(255,255,255,.65);text-decoration:none;padding:10px 14px;
+            font-size:13px;border-bottom:2px solid transparent;display:inline-block }}
+  .nav a:hover,.nav a.active {{ color:white;border-bottom-color:#e74c3c }}
+  .wrap {{ max-width:1400px;margin:24px auto;padding:0 20px }}
+  table {{ border-collapse:separate;border-spacing:3px;width:100% }}
+  td,th {{ border-radius:4px }}
+  a[href]:hover {{ background:#f0f9ff !important; }}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🗺 JD情报矩阵</h1>
+  <div class="meta">近30天 · 评分≥55分 · 按领域 × 立场重新聚合 · 共 {total_articles} 篇</div>
+</div>
+<div class="nav">
+  <a href="/jd">📋 今日简报</a>
+  <a href="/jd/all">🗃 全部归档</a>
+  <a href="/jd/matrix" class="active">🗺 情报矩阵</a>
+  <a href="/jd/sources">📡 情报源</a>
+  <a href="/jd/feed.xml" class="rss" style="margin-left:auto">feed ↗</a>
+</div>
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.8px">
+      行 = 产研板块（来自AI评分的 primary_teams 字段）· 列 = 来源立场
+    </div>
+    <div style="font-size:11px;color:#9ca3af">
+      {len(top_domains)} 个领域 · {len(COL_STANDPOINTS)} 种立场 · {empty_cells} 格暂无文章
+    </div>
+  </div>
+  <div style="overflow-x:auto">
+    <table>
+      <thead><tr>{col_hdrs}</tr></thead>
+      <tbody>{rows_html}</tbody>
+    </table>
+  </div>
+  <div style="margin-top:12px;font-size:11px;color:#9ca3af">
+    每格显示最高分前2篇 · 点击标题跳转原文 · 数据实时从数据库读取
+  </div>
+</div>
+</body>
+</html>'''
+
+
+def _old_render_jd_matrix():
     col_bg = ['#f5f3ff','#eff6ff','#f0fdf4','#fff7ed','#fdf2f8']
     col_hdr = ['#7c3aed','#2563eb','#059669','#d97706','#9333ea']
 
@@ -2269,7 +2407,42 @@ def render_jd_matrix():
 
 @app.route('/jd/matrix')
 def jd_matrix():
-    return render_jd_matrix()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("""
+        SELECT id, feed_name, article_title, article_link,
+               published_date, criteria_score, criteria
+        FROM articles
+        WHERE feed_name LIKE 'jd-%'
+          AND criteria_score >= 55
+          AND published_date >= date('now', '-30 days')
+          AND criteria IS NOT NULL
+        ORDER BY criteria_score DESC
+        LIMIT 600
+    """).fetchall()
+    conn.close()
+
+    # Build cells: {(plate, standpoint): [row, ...]}
+    cells_data = {}
+    plate_counts = {}
+    for row in rows:
+        try:
+            bd = json.loads(row['criteria'])
+            teams = bd.get('primary_teams') or bd.get('relevant_teams') or []
+            plate = TEAM_TO_PLATE.get(teams[0], '') if teams else ''
+            standpoint = STANDPOINT_MAP.get(row['feed_name'], '')
+            if plate and standpoint:
+                key = (plate, standpoint)
+                cells_data.setdefault(key, []).append(row)
+                plate_counts[plate] = plate_counts.get(plate, 0) + 1
+        except Exception:
+            pass
+
+    # Top plates by article count — use PLATE_GROUPS order as canonical
+    plate_order = [pname for pname, _, _, *_ in PLATE_GROUPS]
+    top_domains = [p for p in plate_order if p in plate_counts]
+
+    return render_jd_matrix(cells_data, top_domains, len(rows))
 
 
 # ── Temporary: Capital & Investor standpoint feed ─────────────────────────
