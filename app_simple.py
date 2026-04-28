@@ -812,6 +812,7 @@ def render_jd_browser(rows, title, feed_url, active_team=None, shortlist=False, 
 
   <a href="/jd/paste">✍️ 人工投稿</a>
   <a href="/jd/matrix">🗺 情报矩阵</a>
+  <a href="/jd/retail">🏪 竞品动向</a>
   <a href="/jd/sources">📡 情报源</a>
   <a href="/jd/feed.xml" class="rss" style="margin-left:auto">feed ↗</a>
 </div>
@@ -1158,6 +1159,7 @@ def _render_briefing(clusters, lone_rows, last_run):
 
   <a href="/jd/paste">✍️ 人工投稿</a>
   <a href="/jd/matrix">🗺 情报矩阵</a>
+  <a href="/jd/retail">🏪 竞品动向</a>
   <a href="/jd/sources">📡 情报源</a>
 </div>
 <div class="outer">
@@ -1504,6 +1506,7 @@ def jd_intelligence():
 
   <a href="/jd/paste">✍️ 人工投稿</a>
   <a href="/jd/matrix">🗺 情报矩阵</a>
+  <a href="/jd/retail">🏪 竞品动向</a>
   <a href="/jd/sources">📡 情报源</a>
 </div>
 <div class="wrap">
@@ -1680,6 +1683,7 @@ def jd_paste():
 
   <a href="/jd/paste" class="active">✍️ 人工投稿</a>
   <a href="/jd/matrix">🗺 情报矩阵</a>
+  <a href="/jd/retail">🏪 竞品动向</a>
   <a href="/jd/sources">📡 情报源</a>
 </div>
 
@@ -1979,6 +1983,7 @@ function copyUrl(url, btn) {{
   <a href="/jd">📋 今日简报</a>
   <a href="/jd/all">🗃 全部归档</a>
   <a href="/jd/matrix">🗺 情报矩阵</a>
+  <a href="/jd/retail">🏪 竞品动向</a>
   <a href="/jd/sources">📡 情报源</a>
   <a href="/jd/feed.xml" class="rss active" style="margin-left:auto">feed ↗</a>
 </div>
@@ -2299,6 +2304,7 @@ def render_jd_matrix(cells_data, total_articles):
   <a href="/jd">📋 今日简报</a>
   <a href="/jd/all">🗃 全部归档</a>
   <a href="/jd/matrix" class="active">🗺 情报矩阵</a>
+  <a href="/jd/retail">🏪 竞品动向</a>
   <a href="/jd/sources">📡 情报源</a>
   <a href="/jd/feed.xml" style="margin-left:auto;color:rgba(255,255,255,.65);text-decoration:none;padding:10px 14px;font-size:13px">feed ↗</a>
 </div>
@@ -2435,6 +2441,7 @@ def _old_render_jd_matrix():
   <a href="/jd">📋 今日简报</a>
   <a href="/jd/all">🗃 全部归档</a>
   <a href="/jd/matrix" class="active">🗺 情报矩阵</a>
+  <a href="/jd/retail">🏪 竞品动向</a>
   <a href="/jd/sources">📡 情报源</a>
   <a href="/jd/feed.xml" class="rss" style="margin-left:auto">feed ↗</a>
 </div>
@@ -3408,6 +3415,279 @@ def jd_step2():
     html_path = os.path.join(os.path.dirname(__file__), 'workflow_step2_detail.html')
     with open(html_path, 'r', encoding='utf-8') as f:
         return Response(f.read(), mimetype='text/html')
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  竞品动向 — Competitor & Industry Intelligence (Retail Value Chain)
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Feeds that directly cover the retail value chain or competitor moves
+RETAIL_CHAIN_FEEDS = {
+    # Competitor official tech/engineering blogs
+    'jd-amazon-science', 'jd-walmart-tech', 'jd-alizila',
+    'jd-shopify', 'jd-shopee-blog', 'jd-meituan-tech',
+    'jd-grab-engineering', 'jd-instacart-tech',
+    # Retail industry media
+    'jd-modern-retail', 'jd-retail-dive', 'jd-digital-commerce', 'jd-practical-ecom',
+    # Supply chain & logistics
+    'jd-supply-chain-dive', 'jd-dc-velocity', 'jd-logistics-viewpoints',
+    'jd-freightwaves', 'jd-loadstar', 'jd-supplychainbrain',
+    # Warehouse automation & embodied AI
+    'jd-the-robot-report', 'jd-ieee-spectrum-robotics',
+    # Chinese retail / ecommerce media
+    'jd-36kr', 'jd-36kr-ai', 'jd-36kr-funding', 'jd-36kr-global',
+    'jd-ebrun', 'jd-latepost', 'jd-huxiu', 'jd-yicai',
+    # Global / cross-border retail coverage
+    'jd-krasia', 'jd-pandaily', 'jd-scmp-tech', 'jd-techinasia', 'jd-restofworld',
+    # Recommendation / search research (direct product relevance)
+    'jd-arxiv-ir', 'jd-eugeneyan',
+    # Earnings / investor relations
+    'jd-ir-jd', 'jd-ir-pdd', 'jd-ir-alibaba',
+    # Marketing & ad-tech (customer acquisition layer of retail)
+    'jd-adexchanger', 'jd-digiday',
+    # Payment / fintech (checkout & credit in retail)
+    'jd-finextra', 'jd-pymnts', 'jd-stripe-blog', 'jd-payments-dive',
+    'jd-digital-transactions',
+    # General tech media when they cover retail-adjacent topics
+    'jd-techcrunch-ai', 'jd-venturebeat-ai', 'jd-bloomberg-tech',
+    'jd-mit-tech-review', 'jd-36kr-global',
+    # Manual submissions tagged as retail
+    'jd-manual-report', 'jd-manual-wechat',
+}
+
+# Domain labels (from FEED_DOMAIN_MAP) that qualify as retail value chain
+RETAIL_CHAIN_DOMAINS = {
+    '智能零售', '物流与供应链', '交易服务平台', '广告营销',
+    '金融与支付', '具身智能与机器人', '跨语言与全球化',
+    '消费电子与智能硬件',  # hardware driving retail (AR/VR, smart devices)
+}
+
+# Sub-sector grouping for display
+RETAIL_SECTORS = [
+    ('零售产品与技术',       '🛒', '#2563eb',
+     '商品发现 · 推荐系统 · 个性化 · 搜索 · 转化优化 · 竞品产品迭代',
+     {'智能零售', '交易服务平台'}),
+    ('供应链、物流与配送',   '📦', '#7c3aed',
+     '供应链管理 · 仓储自动化 · 末端配送 · 即时配送 · 逆向物流 · 具身智能机器人',
+     {'物流与供应链', '具身智能与机器人'}),
+    ('营销与用户增长',       '📣', '#d97706',
+     '广告技术 · 内容营销 · 用户获取 · CRM · 会员体系 · 创意生成',
+     {'广告营销'}),
+    ('支付与金融科技',       '💳', '#0891b2',
+     '支付通道 · 先买后付 · 信贷 · 风控 · 数字钱包',
+     {'金融与支付'}),
+    ('全球化与跨境',         '🌏', '#dc2626',
+     '跨境电商 · 海外市场进展 · 本地化 · 全球供应链动态',
+     {'跨语言与全球化'}),
+]
+
+
+def render_jd_retail(sector_articles, total_fetched, total_placed, days=30):
+    """Render the competitor intelligence page."""
+
+    def score_color(s):
+        if s is None: return '#9ca3af'
+        if s >= 75:   return '#dc2626'
+        if s >= 55:   return '#d97706'
+        return '#6b7280'
+
+    def score_bar_sm(s):
+        if s is None: return ''
+        pct = min(100, int(s))
+        color = score_color(s)
+        return (f'<div style="width:40px">'
+                f'<div style="font-size:13px;font-weight:700;color:{color};text-align:center">{int(s)}</div>'
+                f'<div style="height:3px;background:#f3f4f6;border-radius:2px;margin-top:2px">'
+                f'<div style="height:100%;width:{pct}%;background:{color};border-radius:2px"></div></div>'
+                f'</div>')
+
+    def standpoint_pill(feed_name):
+        sp = STANDPOINT_MAP.get(feed_name, '')
+        colors = {
+            '关键玩家': ('#f5f3ff', '#7c3aed', '#ddd6fe'),
+            '资本动向':  ('#f0fdf4', '#059669', '#bbf7d0'),
+            '顶尖研究者':('#fff7ed', '#d97706', '#fed7aa'),
+            '行业媒体':  ('#f0f9ff', '#0891b2', '#bae6fd'),
+            '科技媒体':  ('#eff6ff', '#2563eb', '#bfdbfe'),
+            '技术社区':  ('#f5f3ff', '#6366f1', '#ddd6fe'),
+            '政策与专利':('#fef2f2', '#dc2626', '#fecaca'),
+            '内部情报':  ('#fdf2f8', '#be185d', '#fbcfe8'),
+        }
+        if not sp: return ''
+        bg, fg, bd = colors.get(sp, ('#f3f4f6', '#6b7280', '#e5e7eb'))
+        return (f'<span style="font-size:9px;background:{bg};color:{fg};border:1px solid {bd};'
+                f'padding:1px 6px;border-radius:5px;font-weight:500;white-space:nowrap">{sp}</span>')
+
+    def article_card(row, sector_color):
+        score = row['criteria_score'] or 0
+        title = row['article_title'] or ''
+        src   = JD_SOURCE_MAP.get(row['feed_name'], {}).get('label', row['feed_name'])
+        pub   = _parse_pub_date(row['published_date']).strftime('%m-%d')
+        reason = row['criteria_reason'] or ''
+        action_note = ''
+        try:
+            bd = json.loads(row['criteria'] or '{}')
+            action_note = bd.get('action_note', '')
+        except Exception:
+            pass
+        sp_pill = standpoint_pill(row['feed_name'])
+        return f'''<div style="border:1px solid #e5e7eb;border-left:3px solid {sector_color};
+                       border-radius:7px;padding:13px 16px;margin-bottom:10px;background:white;
+                       box-shadow:0 1px 2px rgba(0,0,0,.04)">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+        <span style="font-size:10px;color:#9ca3af">{src} · {pub}</span>
+        {sp_pill}
+      </div>
+      <a href="{row['article_link']}" target="_blank"
+         style="font-size:13px;font-weight:600;color:#111827;text-decoration:none;line-height:1.5;display:block">
+        {title}
+      </a>
+      {f'<div style="margin-top:8px;padding:7px 10px;background:#fffbeb;border-left:2px solid #f59e0b;border-radius:0 5px 5px 0;font-size:11px;color:#92400e;line-height:1.55">📋 {action_note}</div>' if action_note else ''}
+      {f'<div style="margin-top:6px;font-size:11px;color:#6b7280;line-height:1.5">{reason}</div>' if reason and not action_note else ''}
+    </div>
+    <div style="flex-shrink:0">{score_bar_sm(score)}</div>
+  </div>
+</div>'''
+
+    # Build sector HTML blocks
+    sectors_html = ''
+    for sec_name, icon, color, sub, _ in RETAIL_SECTORS:
+        arts = sector_articles.get(sec_name, [])
+        count = len(arts)
+        if not arts:
+            sector_body = '<div style="padding:24px;text-align:center;color:#d1d5db;font-size:12px">暂无符合条件的文章 — 来源覆盖扩充后将自动填充</div>'
+        else:
+            sector_body = ''.join(article_card(r, color) for r in arts[:8])
+            if count > 8:
+                sector_body += (f'<div style="text-align:center;padding:8px;font-size:11px;color:#9ca3af">'
+                                f'还有 {count-8} 篇 · 可调整筛选条件查看更多</div>')
+
+        sectors_html += f'''
+<div style="margin-bottom:24px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;
+              padding-bottom:10px;border-bottom:2px solid {color}20">
+    <span style="font-size:20px">{icon}</span>
+    <div>
+      <div style="font-size:15px;font-weight:700;color:#1a1a2e">{sec_name}</div>
+      <div style="font-size:11px;color:#9ca3af;margin-top:1px">{sub}</div>
+    </div>
+    <span style="margin-left:auto;background:{color}15;color:{color};border:1px solid {color}30;
+                 font-size:11px;font-weight:600;padding:2px 10px;border-radius:10px">{count} 篇</span>
+  </div>
+  {sector_body}
+</div>'''
+
+    # Summary stats
+    sector_counts = {s[0]: len(sector_articles.get(s[0], [])) for s in RETAIL_SECTORS}
+    total_shown   = sum(sector_counts.values())
+
+    return f'''<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JD竞品动向</title>
+<style>
+  * {{ box-sizing:border-box }}
+  body {{ margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+          background:#f3f4f6;color:#1a1a2e }}
+  .header {{ background:linear-gradient(135deg,#1a1a2e,#16213e);color:white;padding:20px 32px }}
+  .header h1 {{ margin:0 0 4px;font-size:20px;font-weight:700 }}
+  .header .meta {{ font-size:12px;opacity:.65 }}
+  .nav {{ background:#16213e;padding:0 32px;display:flex;align-items:center }}
+  .nav a {{ color:rgba(255,255,255,.65);text-decoration:none;padding:10px 14px;
+            font-size:13px;border-bottom:2px solid transparent;display:inline-block }}
+  .nav a:hover,.nav a.active {{ color:white;border-bottom-color:#e74c3c }}
+  .wrap {{ max-width:960px;margin:24px auto;padding:0 20px }}
+  .notice {{ background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;
+             padding:14px 18px;margin-bottom:20px;font-size:13px;color:#1e40af;line-height:1.7 }}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🏪 竞品与行业动向</h1>
+  <div class="meta">零售产业链全链路 · 近{days}天 · 评分≥55分 · 共 {total_placed} 篇有效情报 / {total_fetched} 篇入库</div>
+</div>
+<div class="nav">
+  <a href="/jd">📋 今日简报</a>
+  <a href="/jd/all">🗃 全部归档</a>
+  <a href="/jd/matrix">🗺 情报矩阵</a>
+  <a href="/jd/retail" class="active">🏪 竞品动向</a>
+  <a href="/jd/sources">📡 情报源</a>
+  <a href="/jd/feed.xml" style="margin-left:auto;color:rgba(255,255,255,.65);text-decoration:none;padding:10px 14px;font-size:13px">feed ↗</a>
+</div>
+<div class="wrap">
+  <div class="notice">
+    <strong>📌 首发版本说明</strong> — 聚焦零售产业链竞品的产品与技术创新动态，覆盖从上游设计/制造 →
+    仓储/供应链 → 物流/配送 → 营销/客服全链路。文章来源优先纳入竞品官方技术博客、行业垂直媒体、
+    供应链专业媒体，评分规则与总裁简报保持一致（相关性 40 · 新颖性 30 · 来源层级 20 · 时效性 10）。
+  </div>
+  <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+    {''.join(f'''<div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;
+                              display:flex;align-items:center;gap:8px;min-width:130px">
+      <span style="font-size:16px">{s[1]}</span>
+      <div><div style="font-size:11px;font-weight:700;color:#1a1a2e">{s[0]}</div>
+           <div style="font-size:10px;color:#9ca3af">{sector_counts[s[0]]} 篇</div></div>
+    </div>''' for s in RETAIL_SECTORS)}
+  </div>
+  {sectors_html}
+</div>
+</body>
+</html>'''
+
+
+@app.route('/jd/retail')
+def jd_retail():
+    days = int(request.args.get('days', 30))
+    min_score = int(request.args.get('min_score', 55))
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(f"""
+        SELECT id, feed_name, article_title, article_link,
+               published_date, criteria_score, criteria_reason, criteria, signal_tier
+        FROM articles
+        WHERE feed_name LIKE 'jd-%'
+          AND criteria_score >= ?
+          AND published_date >= date('now', '-{days} days')
+        ORDER BY criteria_score DESC
+        LIMIT 800
+    """, (min_score,)).fetchall()
+    conn.close()
+
+    # ── Categorise articles by sector ──────────────────────────────────────
+    sector_articles = {s[0]: [] for s in RETAIL_SECTORS}
+    for row in rows:
+        feed = row['feed_name']
+        # Determine the domain label for this article
+        domain = FEED_DOMAIN_MAP.get(feed, '')
+        if not domain:
+            try:
+                bd = json.loads(row['criteria'] or '{}')
+                teams = bd.get('primary_teams') or bd.get('relevant_teams') or []
+                domain = TEAM_TO_DOMAIN.get(teams[0], '') if teams else ''
+            except Exception:
+                pass
+
+        # Only include if feed is in retail scope OR domain is in retail chain
+        if feed not in RETAIL_CHAIN_FEEDS and domain not in RETAIL_CHAIN_DOMAINS:
+            continue
+
+        # Map to a sector
+        placed = False
+        for sec_name, icon, color, sub, sec_domains in RETAIL_SECTORS:
+            if domain in sec_domains:
+                sector_articles[sec_name].append(row)
+                placed = True
+                break
+        # Fallback: put unmatched-domain retail-chain articles in 零售产品与技术
+        if not placed and feed in RETAIL_CHAIN_FEEDS:
+            sector_articles['零售产品与技术'].append(row)
+
+    total_placed = sum(len(v) for v in sector_articles.values())
+    return render_jd_retail(sector_articles, len(rows), total_placed, days)
 
 
 if __name__ == '__main__':
