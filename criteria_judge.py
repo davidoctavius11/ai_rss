@@ -127,7 +127,7 @@ def judge_article(article_id, feed_name, title, content, is_fulltext=False, borr
 
     try:
         response = client.chat.completions.create(
-            model="deepseek-v4-pro",
+            model="deepseek-chat",
             messages=[
                 {"role": "system", "content": "你是严谨的科技文章审稿人，严格按照给定的筛选标准打分，不偏袒不手软。即使只有摘要也要尽力判断。"},
                 {"role": "user", "content": prompt}

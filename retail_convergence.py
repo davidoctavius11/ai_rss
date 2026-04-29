@@ -17,69 +17,44 @@ from openai import OpenAI
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'data', 'ai_rss.db')
 
-# ── 刘强东10节甘蔗 ─────────────────────────────────────────────────────────
+# ── 8大业务域 ──────────────────────────────────────────────────────────────
 # (key, label, emoji, description, feeds_set, keywords)
 GANMIE_SEGMENTS = [
     (
-        'design', '设计', '✏️',
-        '消费者洞察 · 产品设计 · 品牌塑造 · 用户体验研究',
-        {'jd-nngroup', 'jd-ux-collective', 'jd-smashing-magazine', 'jd-woshipm', 'jd-manual-wechat'},
-        ['design', 'UX', 'user research', 'brand'],
-    ),
-    (
-        'manufacturing', '制造', '🏭',
-        '智能制造 · 硬件生产 · 机器人产线 · 工业自动化',
-        {'jd-ieee-spectrum-robotics', 'jd-the-robot-report', 'jd-fierce-electronics', 'jd-cleantechnica'},
-        ['manufacturing', 'production', 'factory', 'hardware'],
-    ),
-    (
-        'pricing', '定价', '🏷️',
-        '动态定价 · 竞争定价策略 · 利润率管理 · 价格感知',
-        {'jd-digital-commerce', 'jd-practical-ecom', 'jd-modern-retail', 'jd-retail-dive', 'jd-ebrun', 'jd-36kr'},
-        ['pricing', 'price', 'margin', 'discount'],
-    ),
-    (
-        'marketing', '营销', '📣',
-        '广告投放 · 内容营销 · 用户获取 · CRM · 会员体系 · 创意生成',
-        {'jd-adexchanger', 'jd-digiday', 'jd-techcrunch-ai', 'jd-venturebeat-ai', 'jd-36kr-ai', 'jd-leiphone'},
-        ['marketing', 'advertising', 'campaign', 'CRM'],
-    ),
-    (
-        'transaction', '交易', '🛒',
-        '商品发现 · 搜索推荐 · 购物车转化 · 平台撮合 · 个性化',
+        'search_content', '搜索与内容社区', '🔍',
+        '搜索推荐 · 内容发现 · 个性化 · UX设计 · 用户研究 · 技术社区信号',
         {
             'jd-arxiv-ir', 'jd-eugeneyan', 'jd-amazon-science', 'jd-walmart-tech',
-            'jd-shopify', 'jd-shopee-blog', 'jd-grab-engineering', 'jd-instacart-tech',
-            'jd-alizila', 'jd-meituan-tech', 'jd-digital-commerce', 'jd-practical-ecom',
-            'jd-restofworld', 'jd-krasia',
+            'jd-instacart-tech', 'jd-grab-engineering', 'jd-shopify', 'jd-shopee-blog',
+            'jd-nngroup', 'jd-ux-collective', 'jd-woshipm', 'jd-hackernews',
+            'jd-meituan-tech', 'jd-digital-commerce',
         },
-        ['recommendation', 'search', 'conversion', 'marketplace', 'personalization'],
+        ['search', 'recommendation', 'content', 'discovery', 'personalization', 'UX', 'design'],
     ),
     (
-        'warehousing', '仓储', '📦',
-        '仓库管理系统 · 库存优化 · 自动化拣货 · 机器人仓储',
-        {'jd-dc-velocity', 'jd-supplychainbrain', 'jd-logistics-viewpoints', 'jd-the-robot-report', 'jd-ieee-spectrum-robotics'},
-        ['warehouse', 'inventory', 'fulfillment', 'picking', 'WMS'],
-    ),
-    (
-        'delivery', '配送', '🚚',
-        '最后一公里 · 即时配送 · 路由优化 · 跨境物流 · 无人配送',
+        'advertising', '广告营销', '📣',
+        '程序化广告 · 内容营销 · 用户获取 · CRM · 创意生成 · 品牌传播',
         {
-            'jd-supply-chain-dive', 'jd-freightwaves', 'jd-loadstar',
-            'jd-logistics-viewpoints', 'jd-dc-velocity',
-            'jd-pandaily', 'jd-scmp-tech', 'jd-techinasia',
+            'jd-adexchanger', 'jd-digiday', 'jd-techcrunch-ai', 'jd-venturebeat-ai',
+            'jd-36kr-ai', 'jd-leiphone', 'jd-36kr-funding',
         },
-        ['delivery', 'logistics', 'last mile', 'shipping', 'routing'],
+        ['advertising', 'marketing', 'campaign', 'CRM', 'brand', 'growth'],
     ),
     (
-        'aftersales', '售后服务', '🎧',
-        '退换货 · 客户服务 · AI客服 · 质保体系 · 用户留存',
-        {'jd-meituan-tech', 'jd-modern-retail', 'jd-retail-dive', 'jd-manual-wechat', 'jd-manual-report'},
-        ['customer service', 'returns', 'after-sales', 'support', 'retention'],
+        'smart_retail', '智能零售', '🛒',
+        '电商平台 · 动态定价 · 购物车转化 · 竞品动态 · 跨境电商',
+        {
+            'jd-modern-retail', 'jd-retail-dive', 'jd-digital-commerce', 'jd-practical-ecom',
+            'jd-ebrun', 'jd-36kr', 'jd-restofworld', 'jd-krasia', 'jd-alizila',
+            'jd-ir-jd', 'jd-ir-pdd', 'jd-ir-alibaba',
+            'jd-pandaily', 'jd-techinasia', 'jd-scmp-tech', 'jd-36kr-global',
+            'jd-yicai', 'jd-huxiu',
+        },
+        ['retail', 'ecommerce', 'pricing', 'marketplace', 'platform', 'conversion'],
     ),
     (
-        'finance', '金融服务', '💳',
-        '支付通道 · 先买后付 · 消费信贷 · 风控 · 数字钱包',
+        'finance', '金融与支付', '💳',
+        '支付通道 · 先买后付 · 消费信贷 · 风控 · 数字钱包 · 稳定币',
         {
             'jd-finextra', 'jd-pymnts', 'jd-stripe-blog',
             'jd-payments-dive', 'jd-digital-transactions',
@@ -88,16 +63,45 @@ GANMIE_SEGMENTS = [
         ['payment', 'fintech', 'BNPL', 'credit', 'fraud', 'wallet'],
     ),
     (
-        'data_tech', '数据/技术', '🤖',
-        'AI/ML · 大模型应用 · 推荐算法 · 数据平台 · 云基础设施',
+        'logistics', '物流与供应链', '🚚',
+        '仓储自动化 · 最后一公里 · 即时配送 · 路由优化 · 跨境物流',
         {
-            'jd-arxiv-ir', 'jd-arxiv-lg', 'jd-amazon-science', 'jd-walmart-tech',
-            'jd-alizila', 'jd-instacart-tech', 'jd-bloomberg-tech', 'jd-mit-tech-review',
-            'jd-36kr-ai', 'jd-leiphone', 'jd-huxiu', 'jd-yicai',
-            'jd-pandaily', 'jd-technode', 'jd-36kr-global',
-            'jd-ir-jd', 'jd-ir-pdd', 'jd-ir-alibaba',
+            'jd-dc-velocity', 'jd-supplychainbrain', 'jd-logistics-viewpoints',
+            'jd-supply-chain-dive', 'jd-freightwaves', 'jd-loadstar',
+            'jd-the-robot-report', 'jd-ieee-spectrum-robotics',
         },
-        ['AI', 'machine learning', 'data', 'algorithm', 'LLM', 'model'],
+        ['warehouse', 'logistics', 'last mile', 'delivery', 'shipping', 'fulfillment', 'supply chain'],
+    ),
+    (
+        'robotics', '具身智能与机器人', '🦾',
+        '仿人机器人 · 工业自动化 · 感知规划 · 具身AI · 操控系统',
+        {
+            'jd-ieee-spectrum-robotics', 'jd-the-robot-report',
+            'jd-mit-tech-review', 'jd-import-ai', 'jd-bloomberg-tech',
+        },
+        ['robot', 'embodied', 'manipulation', 'autonomous', 'humanoid', 'motor', 'dexterous'],
+    ),
+    (
+        'hardware', '智能硬件', '🔧',
+        '芯片 · 消费电子 · 智能设备 · IoT · 新能源 · 通信模组',
+        {
+            'jd-fierce-electronics', 'jd-cleantechnica', 'jd-electrek',
+            'jd-electrive', 'jd-rcr-wireless', 'jd-canary-media',
+        },
+        ['chip', 'hardware', 'electronics', 'IoT', 'device', 'energy', 'EV', 'semiconductor'],
+    ),
+    (
+        'ai_infra', 'AI基础设施', '⚡',
+        '大模型 · 推理优化 · 训练平台 · AI Agent · 开发工具链 · 数据平台',
+        {
+            'jd-arxiv-lg', 'jd-chip-huyen', 'jd-interconnects', 'jd-karpathy',
+            'jd-lillog', 'jd-fastai', 'jd-import-ai', 'jd-a16z',
+            'jd-latent-space', 'jd-simonwillison', 'jd-langchain-blog',
+            'jd-swyx', 'jd-the-gradient', 'jd-towards-ds', 'jd-lesswrong',
+            'jd-techcrunch-ai', 'jd-venturebeat-ai', 'jd-mit-tech-review',
+            'jd-bloomberg-tech', 'jd-qbitai',
+        },
+        ['AI', 'LLM', 'model', 'inference', 'training', 'agent', 'platform', 'infrastructure'],
     ),
 ]
 

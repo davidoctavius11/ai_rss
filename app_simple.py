@@ -3713,7 +3713,7 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60):
               padding-bottom:10px;border-bottom:2px solid {color}30">
     <span style="font-size:22px">{seg_emoji}</span>
     <div style="flex:1">
-      <div style="font-size:15px;font-weight:700;color:#1a1a2e">第{ci+1}节 · {seg_label}</div>
+      <div style="font-size:15px;font-weight:700;color:#1a1a2e">{seg_label}</div>
       <div style="font-size:11px;color:#9ca3af;margin-top:1px">{seg_desc}</div>
     </div>
     {badge}
@@ -3738,7 +3738,7 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60):
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>JD竞品动向 · 10节甘蔗</title>
+<title>JD竞品动向 · 8大业务域</title>
 <style>
   * {{ box-sizing:border-box }}
   body {{ margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
@@ -3756,7 +3756,7 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60):
 <body>
 <div class="header">
   <h1>🏪 竞品与行业动向</h1>
-  <div class="meta">刘强东10节甘蔗 · 零售产业链全链路收敛分析 · 近{days}天 · 共 {total_clusters} 个收敛聚类</div>
+  <div class="meta">8大业务域跨来源收敛分析 · 近{days}天 · 共 {total_clusters} 个收敛聚类</div>
 </div>
 <div class="nav">
   <a href="/jd">📋 今日简报</a>
@@ -3769,10 +3769,10 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60):
 <div class="wrap">
   <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;
               margin-bottom:16px;font-size:12px;color:#92400e;line-height:1.7">
-    <strong>📌 刘强东10节甘蔗理论</strong> — 零售价值链的10个利润节点：
-    设计→制造→定价→营销→交易→仓储→配送→售后服务→金融服务→数据/技术。
-    每节显示该环节的跨来源收敛信号（多个独立来源印证同一趋势）。
-    更新频率：每次运行 <code>retail_convergence.py</code> 后刷新。
+    <strong>📌 收敛信号说明</strong> — 每个卡片代表来自多个独立来源对同一趋势的交叉印证。
+    8大业务域覆盖搜索与内容、广告营销、智能零售、金融与支付、物流供应链、
+    具身智能与机器人、智能硬件、AI基础设施。
+    每个域显示该领域内产品/技术已落地的跨来源收敛信号，附体验/成本/效率三维价值分析与团队行动建议。
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px">{overview}</div>
   {segments_html}
