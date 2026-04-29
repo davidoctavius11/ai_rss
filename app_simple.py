@@ -3533,7 +3533,45 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60,
         return (f'<span style="font-size:9px;background:{bg};color:{fg};border:1px solid {bd};'
                 f'padding:1px 6px;border-radius:5px;font-weight:500">{sp}</span>')
 
-    def cluster_card(cl, seg_color):
+    # Scope → baseline keyword set for community signal matching
+    SCOPE_KEYWORDS = {
+        'search_content': ['recommendation', 'search', 'retrieval', 'ranking', 'personali', 'ux', 'content'],
+        'advertising':    ['advertis', 'marketing', 'campaign', 'crm', 'audience', 'brand'],
+        'smart_retail':   ['retail', 'ecommerc', 'shopping', 'merchant', 'pricing', 'marketplace', 'platform'],
+        'finance':        ['payment', 'checkout', 'fintech', 'bnpl', 'fraud', 'wallet', '支付'],
+        'logistics':      ['logistic', 'warehouse', 'delivery', 'supply chain', 'shipping', 'fulfillment', '物流'],
+        'robotics':       ['robot', 'humanoid', 'embodied', 'autonomous', 'dexterous', '机器人'],
+        'hardware':       ['chip', 'hardware', 'iot', 'semiconductor', 'device', 'electronic'],
+        'ai_infra':       ['llm', 'model', 'inference', 'agent', 'training', 'vibe', 'safety',
+                           'foundation', 'open.?source', 'reasoning', 'benchmark'],
+    }
+
+    def _match_buzz(cl, buzz_posts):
+        """Return up to 2 community posts that best match this cluster."""
+        import re as _re
+        scope = cl['scope'] if 'scope' in cl.keys() else ''
+        theme = (cl['theme_label'] or '').lower()
+        why   = (cl['why_convergent'] or '').lower()
+        combined = theme + ' ' + why
+
+        # Build keyword list: scope base + specific nouns from theme_label
+        kws = list(SCOPE_KEYWORDS.get(scope, []))
+        for w in _re.findall(r'[A-Za-z]{4,}', cl['theme_label'] or ''):
+            kws.append(w.lower())
+        for w in _re.findall(r'[一-鿿]{2,4}', cl['theme_label'] or ''):
+            if w not in ('的与和是在了等对于从'):
+                kws.append(w)
+
+        scored = []
+        for post in buzz_posts:
+            text = (post['article_title'] or '').lower()
+            hits = sum(1 for kw in kws if _re.search(kw, text))
+            if hits:
+                scored.append((hits, post))
+        scored.sort(key=lambda x: -x[0])
+        return [dict(p) for _, p in scored[:2]]
+
+    def cluster_card(cl, seg_color, community_signals=None):
         score   = cl['convergence_score'] or 0
         theme   = cl['theme_label'] or ''
         why     = cl['why_convergent'] or ''
@@ -3646,11 +3684,58 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60,
                             f'padding:6px 12px;margin-bottom:8px;font-size:11px;color:#9ca3af">'
                             f'🔬 尚未商业化落地</div>')
 
-        return f'''<div style="border:1px solid #e5e7eb;border-left:4px solid {seg_color};
+        # Community signals block
+        buzz_block = ''
+        if community_signals:
+            buzz_items = ''
+            for post in community_signals:
+                fn = post.get('feed_name', '')
+                raw = post.get('article_title', '') or ''
+                is_rt = raw.startswith('RT by @') or raw.startswith('R to @')
+                text = raw[raw.find(': ')+2:] if ': ' in raw[:30] else raw
+                text_short = text[:140] + '…' if len(text) > 140 else text
+                pub = _parse_pub_date(post.get('published_date', '')).strftime('%-m/%-d')
+                link = post.get('article_link', '#') or '#'
+                if fn in TWITTER_PERSON_MAP:
+                    pname, emoji, _ = TWITTER_PERSON_MAP[fn]
+                    src_label = f'{emoji} {pname}'
+                elif fn == 'jd-hackernews':
+                    src_label = '🔗 HN'
+                else:
+                    src_label = fn
+                rt_tag = ('<span style="font-size:8px;background:#f3f4f6;color:#9ca3af;'
+                          'border-radius:3px;padding:0 3px;margin-right:3px">转</span>') if is_rt else ''
+                buzz_items += (
+                    f'<div style="padding:5px 0;border-top:1px solid #fde68a;'
+                    f'display:flex;gap:8px;align-items:flex-start">'
+                    f'<span style="font-size:10px;color:#d97706;font-weight:600;'
+                    f'flex-shrink:0;white-space:nowrap">{src_label}</span>'
+                    f'<div style="font-size:10px;color:#78350f;line-height:1.5;flex:1">'
+                    f'{rt_tag}'
+                    f'<a href="{link}" target="_blank" style="color:#78350f;text-decoration:none">{text_short}</a>'
+                    f'<span style="color:#d1d5db;margin-left:4px">{pub}</span>'
+                    f'</div></div>'
+                )
+            fire = '🔥 ' * min(len(community_signals), 2)
+            buzz_block = (
+                f'<div style="padding:8px 16px;background:#fffbeb;border-top:1px solid #fde68a">'
+                f'<div style="font-size:10px;font-weight:700;color:#d97706;margin-bottom:4px">'
+                f'{fire}社区热议印证</div>'
+                f'{buzz_items}'
+                f'</div>'
+            )
+
+        has_buzz = bool(community_signals)
+        border_color = '#f59e0b' if has_buzz else seg_color
+        fire_badge = ('<span style="font-size:10px;background:#fef3c7;color:#d97706;'
+                      'border:1px solid #fde68a;border-radius:4px;padding:1px 6px;'
+                      'font-weight:700">🔥 社区热议</span> ') if has_buzz else ''
+
+        return f'''<div style="border:1px solid {"#fde68a" if has_buzz else "#e5e7eb"};border-left:4px solid {border_color};
                        border-radius:8px;margin-bottom:14px;background:white;overflow:hidden">
   <div style="padding:14px 16px;background:{seg_color}08">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
-      <div style="font-size:14px;font-weight:700;color:#1a1a2e">{theme}</div>
+      <div style="font-size:14px;font-weight:700;color:#1a1a2e">{fire_badge}{theme}</div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
         {sps_html}
         {maturity_html}
@@ -3666,9 +3751,16 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60,
     {sources_html}
   </div>
   {f'<div style="padding:8px 16px;background:#f9fafb;border-top:1px solid #f3f4f6;font-size:11px;color:#374151;line-height:1.7">{synth}</div>' if synth else ''}
+  {buzz_block}
   {f'<div style="padding:10px 16px;background:#fffbeb;border-top:1px solid #fde68a"><div style="font-size:11px;color:#92400e;line-height:1.6"><strong>🔍 {sq}</strong></div><div style="font-size:11px;color:#78350f;margin-top:4px">📋 {action}</div></div>' if sq or action else ''}
   {f'<div style="padding:8px 16px;background:#fef2f2;border-top:1px solid #fecaca;display:flex;align-items:center;flex-wrap:wrap;gap:4px">{reaction_html}{teams_html}</div>' if reaction else ''}
 </div>'''
+
+    # ── Flatten all buzz posts for matching ───────────────────────────────
+    all_buzz_posts = []
+    for posts in (buzz_twitter or {}).values():
+        all_buzz_posts.extend(dict(p) for p in posts)
+    all_buzz_posts.extend(dict(r) for r in (hn_rows or []))
 
     # ── Build segment blocks ───────────────────────────────────────────────
     segments_html = ''
@@ -3680,7 +3772,10 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60,
         n_art    = len(arts)
 
         if clusters:
-            body = ''.join(cluster_card(cl, color) for cl in clusters)
+            body = ''.join(
+                cluster_card(cl, color, community_signals=_match_buzz(cl, all_buzz_posts))
+                for cl in clusters
+            )
         elif arts:
             # Fallback: show top individual articles if no clusters yet
             def _art_card(row):
@@ -3715,96 +3810,6 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60,
     {badge}
   </div>
   <div style="padding:0 4px">{body}</div>
-</div>'''
-
-    # ── 技术社区热议 section ───────────────────────────────────────────────
-    buzz_html = ''
-    if buzz_twitter or hn_rows:
-        buzz_twitter = buzz_twitter or {}
-        hn_rows = hn_rows or []
-
-        # Twitter: only show persons who have posts
-        tw_cards = ''
-        for fn, posts in buzz_twitter.items():
-            if not posts:
-                continue
-            name, emoji, role = TWITTER_PERSON_MAP.get(fn, (fn, '👤', ''))
-            posts_html = ''
-            for p in posts:
-                raw = p['article_title'] or ''
-                is_rt = raw.startswith('RT by @') or raw.startswith('R to @')
-                text = raw[raw.find(': ')+2:] if ': ' in raw[:30] else raw
-                text_short = text[:160] + '…' if len(text) > 160 else text
-                rt_badge = ('<span style="font-size:9px;background:#f3f4f6;color:#9ca3af;'
-                            'border-radius:3px;padding:1px 4px;margin-right:4px">RT</span>') if is_rt else ''
-                pub = _parse_pub_date(p['published_date']).strftime('%-m/%-d')
-                link = p['article_link'] or '#'
-                posts_html += (
-                    f'<div style="padding:6px 0;border-top:1px solid #f3f4f6;font-size:11px;'
-                    f'color:#374151;line-height:1.5">'
-                    f'{rt_badge}'
-                    f'<a href="{link}" target="_blank" style="color:#374151;text-decoration:none">{text_short}</a>'
-                    f'<span style="font-size:9px;color:#d1d5db;margin-left:6px">{pub}</span>'
-                    f'</div>'
-                )
-            tw_cards += (
-                f'<div style="background:white;border:1px solid #e5e7eb;border-radius:8px;'
-                f'padding:10px 12px;margin-bottom:8px">'
-                f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'
-                f'<span style="font-size:16px">{emoji}</span>'
-                f'<div><div style="font-size:12px;font-weight:700;color:#111827">{name}</div>'
-                f'<div style="font-size:9px;color:#9ca3af">{role}</div></div>'
-                f'</div>'
-                f'{posts_html}'
-                f'</div>'
-            )
-
-        # HN section
-        hn_cards = ''
-        for row in hn_rows:
-            title = row['article_title'] or ''
-            title_short = title[:90] + '…' if len(title) > 90 else title
-            link = row['article_link'] or '#'
-            pub = _parse_pub_date(row['published_date']).strftime('%-m/%-d')
-            sc = row['criteria_score']
-            sc_badge = ''
-            if sc and sc > 30:
-                sc_badge = (f'<span style="font-size:9px;font-weight:700;color:#d97706;'
-                            f'margin-right:4px">{int(sc)}</span>')
-            hn_cards += (
-                f'<div style="padding:7px 0;border-top:1px solid #f3f4f6;font-size:11px">'
-                f'{sc_badge}'
-                f'<a href="{link}" target="_blank" style="color:#111827;font-weight:500;'
-                f'text-decoration:none;line-height:1.5">{title_short}</a>'
-                f'<span style="font-size:9px;color:#d1d5db;margin-left:6px">{pub}</span>'
-                f'</div>'
-            )
-
-        if tw_cards or hn_cards:
-            buzz_html = f'''
-<div style="margin-bottom:28px" id="seg-buzz">
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;
-              padding-bottom:10px;border-bottom:2px solid #f59e0b40">
-    <span style="font-size:22px">🔥</span>
-    <div style="flex:1">
-      <div style="font-size:15px;font-weight:700;color:#1a1a2e">技术社区热议</div>
-      <div style="font-size:11px;color:#9ca3af;margin-top:1px">关键意见领袖近期观点 · Hacker News热帖 · 近10天</div>
-    </div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start">
-    <div>
-      <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:8px;
-                  padding-left:2px">💬 关键意见领袖</div>
-      {tw_cards or '<div style="color:#9ca3af;font-size:12px;padding:16px">近10天无新动态</div>'}
-    </div>
-    <div>
-      <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:8px;
-                  padding-left:2px">🔗 Hacker News</div>
-      <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px">
-        {hn_cards or '<div style="color:#9ca3af;font-size:12px;padding:8px">近14天无新文章</div>'}
-      </div>
-    </div>
-  </div>
 </div>'''
 
     # Overview pills
@@ -3861,12 +3866,8 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60,
     每个域显示该领域内产品/技术已落地的跨来源收敛信号，附体验/成本/效率三维价值分析与团队行动建议。
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px">
-    <a href="#seg-buzz" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px;
-       background:white;border:1px solid #e5e7eb;border-left:3px solid #f59e0b;border-radius:6px;
-       padding:6px 10px;font-size:11px;color:#1a1a2e;font-weight:500">🔥 社区热议</a>
     {overview}
   </div>
-  {buzz_html}
   {segments_html}
 </div>
 </body>
