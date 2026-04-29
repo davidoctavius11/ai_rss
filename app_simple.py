@@ -19,6 +19,32 @@ jd_t2_cache = {"feed_xml": None, "timestamp": 0, "article_count": 0}
 DB_PATH = os.path.join(os.path.dirname(__file__), 'data', 'ai_rss.db')
 JD_SOURCE_MAP = {s["name"]: s for s in JD_SOURCES}
 
+# Maps twitter feed_name → (display name, emoji, role_desc)
+TWITTER_PERSON_MAP = {
+    'jd-twitter-karpathy':     ('Andrej Karpathy',  '🤖', 'ex-Tesla/OpenAI · AI工程'),
+    'jd-twitter-ylecun':       ('Yann LeCun',       '🧠', 'Meta FAIR首席AI科学家'),
+    'jd-twitter-sama':         ('Sam Altman',       '🏢', 'OpenAI CEO'),
+    'jd-twitter-GaryMarcus':   ('Gary Marcus',      '⚠️', 'AI批评者 · 认知科学'),
+    'jd-twitter-emollick':     ('Ethan Mollick',    '📚', 'Wharton · AI与未来工作'),
+    'jd-twitter-drjimfan':     ('Jim Fan',          '🦾', 'NVIDIA · 具身AI'),
+    'jd-twitter-fchollet':     ('François Chollet', '🧩', 'ARC-AGI作者'),
+    'jd-twitter-xlr8harder':   ('Derrick Harris',   '⚡', 'AI基础设施观察'),
+    'jd-twitter-demishassabis':('Demis Hassabis',   '🔬', 'Google DeepMind CEO'),
+    'jd-twitter-darioamodei':  ('Dario Amodei',     '🔒', 'Anthropic CEO'),
+    'jd-twitter-ilyasut':      ('Ilya Sutskever',   '🧬', 'SSI'),
+    'jd-twitter-gdb':          ('Greg Brockman',    '🏗', 'OpenAI'),
+    'jd-twitter-jeffdean':     ('Jeff Dean',        '⚙️', 'Google'),
+    'jd-twitter-AndrewYNg':    ('Andrew Ng',        '📊', 'AI教育者'),
+    'jd-twitter-rasbt':        ('Sebastian Raschka','🔬', 'Lightning AI · ML研究'),
+    'jd-twitter-kaifulee':     ('Kai-Fu Lee',       '🌏', '创新工场'),
+    'jd-twitter-pmarca':       ('Marc Andreessen',  '💰', 'a16z'),
+    'jd-twitter-naval':        ('Naval Ravikant',   '💡', '天使投资人'),
+    'jd-twitter-chamath':      ('Chamath',          '📈', '社会资本'),
+    'jd-twitter-sarahguo':     ('Sarah Guo',        '🚀', 'Conviction Capital'),
+    'jd-twitter-eladgil':      ('Elad Gil',         '💼', 'AI天使投资人'),
+    'jd-twitter-martin_casado':('Martin Casado',    '☁️', 'a16z · 云计算'),
+}
+
 # Maps feed_name → standpoint label (shown in grey next to source link on cards)
 STANDPOINT_MAP = {
     # 关键玩家官方信源
@@ -3467,7 +3493,8 @@ RETAIL_SECTORS = [
 ]
 
 
-def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60):
+def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60,
+                     buzz_twitter=None, hn_rows=None):
     """Render the retail competitor page using 10节甘蔗 segments + convergence clusters."""
 
     GANMIE_COLORS = [
@@ -3690,6 +3717,96 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60):
   <div style="padding:0 4px">{body}</div>
 </div>'''
 
+    # ── 技术社区热议 section ───────────────────────────────────────────────
+    buzz_html = ''
+    if buzz_twitter or hn_rows:
+        buzz_twitter = buzz_twitter or {}
+        hn_rows = hn_rows or []
+
+        # Twitter: only show persons who have posts
+        tw_cards = ''
+        for fn, posts in buzz_twitter.items():
+            if not posts:
+                continue
+            name, emoji, role = TWITTER_PERSON_MAP.get(fn, (fn, '👤', ''))
+            posts_html = ''
+            for p in posts:
+                raw = p['article_title'] or ''
+                is_rt = raw.startswith('RT by @') or raw.startswith('R to @')
+                text = raw[raw.find(': ')+2:] if ': ' in raw[:30] else raw
+                text_short = text[:160] + '…' if len(text) > 160 else text
+                rt_badge = ('<span style="font-size:9px;background:#f3f4f6;color:#9ca3af;'
+                            'border-radius:3px;padding:1px 4px;margin-right:4px">RT</span>') if is_rt else ''
+                pub = _parse_pub_date(p['published_date']).strftime('%-m/%-d')
+                link = p['article_link'] or '#'
+                posts_html += (
+                    f'<div style="padding:6px 0;border-top:1px solid #f3f4f6;font-size:11px;'
+                    f'color:#374151;line-height:1.5">'
+                    f'{rt_badge}'
+                    f'<a href="{link}" target="_blank" style="color:#374151;text-decoration:none">{text_short}</a>'
+                    f'<span style="font-size:9px;color:#d1d5db;margin-left:6px">{pub}</span>'
+                    f'</div>'
+                )
+            tw_cards += (
+                f'<div style="background:white;border:1px solid #e5e7eb;border-radius:8px;'
+                f'padding:10px 12px;margin-bottom:8px">'
+                f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'
+                f'<span style="font-size:16px">{emoji}</span>'
+                f'<div><div style="font-size:12px;font-weight:700;color:#111827">{name}</div>'
+                f'<div style="font-size:9px;color:#9ca3af">{role}</div></div>'
+                f'</div>'
+                f'{posts_html}'
+                f'</div>'
+            )
+
+        # HN section
+        hn_cards = ''
+        for row in hn_rows:
+            title = row['article_title'] or ''
+            title_short = title[:90] + '…' if len(title) > 90 else title
+            link = row['article_link'] or '#'
+            pub = _parse_pub_date(row['published_date']).strftime('%-m/%-d')
+            sc = row['criteria_score']
+            sc_badge = ''
+            if sc and sc > 30:
+                sc_badge = (f'<span style="font-size:9px;font-weight:700;color:#d97706;'
+                            f'margin-right:4px">{int(sc)}</span>')
+            hn_cards += (
+                f'<div style="padding:7px 0;border-top:1px solid #f3f4f6;font-size:11px">'
+                f'{sc_badge}'
+                f'<a href="{link}" target="_blank" style="color:#111827;font-weight:500;'
+                f'text-decoration:none;line-height:1.5">{title_short}</a>'
+                f'<span style="font-size:9px;color:#d1d5db;margin-left:6px">{pub}</span>'
+                f'</div>'
+            )
+
+        if tw_cards or hn_cards:
+            buzz_html = f'''
+<div style="margin-bottom:28px" id="seg-buzz">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;
+              padding-bottom:10px;border-bottom:2px solid #f59e0b40">
+    <span style="font-size:22px">🔥</span>
+    <div style="flex:1">
+      <div style="font-size:15px;font-weight:700;color:#1a1a2e">技术社区热议</div>
+      <div style="font-size:11px;color:#9ca3af;margin-top:1px">关键意见领袖近期观点 · Hacker News热帖 · 近10天</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start">
+    <div>
+      <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:8px;
+                  padding-left:2px">💬 关键意见领袖</div>
+      {tw_cards or '<div style="color:#9ca3af;font-size:12px;padding:16px">近10天无新动态</div>'}
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:8px;
+                  padding-left:2px">🔗 Hacker News</div>
+      <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px">
+        {hn_cards or '<div style="color:#9ca3af;font-size:12px;padding:8px">近14天无新文章</div>'}
+      </div>
+    </div>
+  </div>
+</div>'''
+
     # Overview pills
     overview = ''
     for ci, (sk, sl, se, _, __, ___) in enumerate(GANMIE_SEGMENTS_RT):
@@ -3743,12 +3860,20 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60):
     具身智能与机器人、智能硬件、AI基础设施。
     每个域显示该领域内产品/技术已落地的跨来源收敛信号，附体验/成本/效率三维价值分析与团队行动建议。
   </div>
-  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px">{overview}</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px">
+    <a href="#seg-buzz" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px;
+       background:white;border:1px solid #e5e7eb;border-left:3px solid #f59e0b;border-radius:6px;
+       padding:6px 10px;font-size:11px;color:#1a1a2e;font-weight:500">🔥 社区热议</a>
+    {overview}
+  </div>
+  {buzz_html}
   {segments_html}
 </div>
 </body>
 </html>'''
 
+
+BUZZ_TWITTER_FEEDS = list(TWITTER_PERSON_MAP.keys())
 
 @app.route('/jd/retail')
 def jd_retail():
@@ -3787,9 +3912,38 @@ def jd_retail():
                 ).fetchall()
                 ganmie_articles[seg_key] = arts
 
+    # ── 技术社区热议: twitter KOLs + HN ───────────────────────────────────
+    tw_placeholders = ','.join('?' * len(BUZZ_TWITTER_FEEDS))
+    tw_rows = conn.execute(
+        "SELECT feed_name, article_title, article_link, published_date, criteria_score, criteria_reason "
+        "FROM articles WHERE feed_name IN (" + tw_placeholders + ") "
+        "AND published_date >= date('now','-10 days') "
+        "ORDER BY published_date DESC LIMIT 60",
+        BUZZ_TWITTER_FEEDS
+    ).fetchall()
+
+    # Group twitter by person, cap at 3 posts each
+    buzz_twitter = {}
+    for row in tw_rows:
+        fn = row['feed_name']
+        if fn not in buzz_twitter:
+            buzz_twitter[fn] = []
+        if len(buzz_twitter[fn]) < 3:
+            buzz_twitter[fn].append(row)
+
+    # HN: last 14 days, recency-sorted (scores unreliable until fix lands)
+    hn_rows = conn.execute(
+        "SELECT article_title, article_link, published_date, criteria_score, criteria_reason "
+        "FROM articles WHERE feed_name='jd-hackernews' "
+        "AND published_date >= date('now','-14 days') "
+        "ORDER BY CASE WHEN criteria_score > 30 THEN criteria_score ELSE 0 END DESC, "
+        "published_date DESC LIMIT 10"
+    ).fetchall()
+
     conn.close()
     total_clusters = sum(len(v) for v in ganmie_clusters.values())
-    return render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days)
+    return render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days,
+                            buzz_twitter=buzz_twitter, hn_rows=hn_rows)
 
 
 if __name__ == '__main__':
