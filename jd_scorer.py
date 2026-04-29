@@ -329,6 +329,15 @@ def score_article(title: str, summary: str, source_label: str, tier: int,
     if rt_note:
         criteria_block += rt_note
 
+    # ── Academic paper institution filter ────────────────────────────────
+    if is_arxiv:
+        criteria_block += (
+            "\n【信号类型：学术论文 — 必须执行机构过滤规则（见评分规则第六节）】"
+            "请立即：①从摘要/标题中识别作者及机构；②对照顶级机构名单判断是否达标；"
+            "③在reason第一句冠以【机构：XXX】标注；"
+            "④若机构不明或非顶级机构，严格执行评分上限（source_tier≤10, novelty≤12, total≤45）。"
+        )
+
     # ── Manual signal type scoring overrides ─────────────────────────────
     if feed_name == 'jd-manual-community':
         criteria_block += (
@@ -432,6 +441,47 @@ def score_article(title: str, summary: str, source_label: str, tier: int,
         result["novelty"] = 12
         result["total"] = max(0, result.get("total", 0) - excess)
         result["reason"] = f"[转推(RT)，无原创评论，新鲜度上限12分] " + result.get("reason", "")
+
+    # Hard cap for low-institution arxiv papers
+    # Detect from reason whether LLM flagged the institution as unknown/non-top
+    if is_arxiv:
+        reason_text = result.get("reason", "").lower()
+        # LLM should have written "作者机构未在顶级" or "机构不明" for non-top papers
+        non_top_signals = ["作者机构未在顶级", "机构不明", "非顶级ai研究机构", "不在顶级", "机构未达标"]
+        is_non_top = any(s in reason_text for s in non_top_signals)
+        # Also detect by looking for 【机构：机构不明】 or 【机构：university of somewhere】 etc.
+        import re as _re2
+        inst_match = _re2.search(r'【机构：([^】]+)】', result.get("reason", ""))
+        if inst_match:
+            inst_name = inst_match.group(1).strip()
+            # List of known top institutions (lowercase, partial match)
+            TOP_INSTS = [
+                'mit', 'stanford', 'cmu', 'carnegie', 'berkeley', 'harvard', 'princeton',
+                'oxford', 'cambridge', 'eth zurich', 'eth zürich', 'toronto', 'nyu',
+                'washington', 'georgia tech', 'michigan', 'columbia', 'epfl',
+                'amsterdam', 'max planck', 'inria',
+                '清华', '北京大学', '上海交通', '浙江大学', '中科院', '复旦', '香港大学',
+                '香港中文', '南京大学', '哈尔滨工业',
+                'google', 'deepmind', 'openai', 'anthropic', 'meta ai', 'fair',
+                'microsoft research', 'apple mlr', 'amazon alexa', 'aws ai',
+                'nvidia research', 'salesforce', 'adobe research', 'bytedance',
+                'alibaba', 'damo', 'tencent ai', 'baidu research', 'baidu',
+                'huawei noah', 'samsung research', 'ibm research', 'intel labs',
+                'qualcomm', 'deepseek', 'mistral',
+            ]
+            inst_lower = inst_name.lower()
+            is_top = (inst_lower == '机构不明') is False and any(k in inst_lower for k in TOP_INSTS)
+            if not is_top or inst_lower == '机构不明':
+                is_non_top = True
+        if is_non_top:
+            orig_st = result.get("source_tier", 0)
+            orig_nv = result.get("novelty", 0)
+            capped_st = min(orig_st, 10)
+            capped_nv = min(orig_nv, 12)
+            penalty = (orig_st - capped_st) + (orig_nv - capped_nv)
+            result["source_tier"] = capped_st
+            result["novelty"] = capped_nv
+            result["total"] = min(45, max(0, result.get("total", 0) - penalty))
 
     # Hard cap for community signals: novelty ≤ 15 unless content has first-person evidence markers
     if feed_name == 'jd-manual-community':
