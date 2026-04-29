@@ -847,16 +847,7 @@ def render_jd_browser(rows, title, feed_url, active_team=None, shortlist=False, 
   <h1>🏪 JD全球前沿情报系统</h1>
   <div class="meta">京东集团CTO部门 · 总裁简报原材料 · 按情报分排序</div>
 </div>
-<div class="nav">
-  <a href="/jd" class="{active_home}">📋 今日简报</a>
-  <a href="/jd/all" class="{active_archive}">🗃 全部归档</a>
-
-  <a href="/jd/paste">✍️ 人工投稿</a>
-  <a href="/jd/matrix">🗺 情报矩阵</a>
-  <a href="/jd/retail">🏪 竞品动向</a>
-  <a href="/jd/sources">📡 情报源</a>
-  <a href="/jd/feed.xml" class="rss" style="margin-left:auto">feed ↗</a>
-</div>
+{_jd_nav("all" if active_archive else "")}
 <div class="outer">
   <div class="feed">
     <div class="topstats">
@@ -955,13 +946,33 @@ def feed_xml_route():
 
 # ── JD Intelligence routes ────────────────────────────────────────────────────
 
+def _jd_nav(active: str) -> str:
+    """Return the shared 4-tab nav bar. active: 'retail'|'buzz'|'sources'|'all'"""
+    def _a(key, href, label):
+        cls = ' class="active"' if key == active else ''
+        return f'<a href="{href}"{cls}>{label}</a>'
+    return (
+        '<div class="nav">'
+        + _a('retail',  '/jd/retail',  '🏪 竞品动向')
+        + _a('buzz',    '/jd/buzz',    '🔥 社区热议')
+        + _a('sources', '/jd/sources', '📡 情报源')
+        + _a('all',     '/jd/all',     '🗃 全部归档')
+        + '<a href="/jd/feed.xml" style="margin-left:auto;color:rgba(255,255,255,.65);'
+          'text-decoration:none;padding:10px 14px;font-size:13px">RSS ↗</a>'
+        + '</div>'
+    )
+
+
 @app.route('/jd')
 def jd_home():
+    from flask import redirect as _redirect
+    return _redirect('/jd/retail')
+
+
+@app.route('/jd/_old_home')
+def jd_home_old():
     """
-    Cluster-based briefing view.
-    Shows intelligence clusters as the primary content, with unclustered
-    high-scoring articles in a secondary section. Team filter drops back
-    to the article-list view for team-specific browsing.
+    Cluster-based briefing view (archived — main entry is now /jd/retail).
     """
     from flask import request
     team = request.args.get('team', '').strip() or None
@@ -1194,15 +1205,7 @@ def _render_briefing(clusters, lone_rows, last_run):
   <h1>🏪 JD全球前沿情报系统</h1>
   <div class="meta">京东集团CTO部门 · 总裁简报原材料 · 收敛信号优先</div>
 </div>
-<div class="nav">
-  <a href="/jd" class="active">📋 今日简报</a>
-  <a href="/jd/all">🗃 全部归档</a>
-
-  <a href="/jd/paste">✍️ 人工投稿</a>
-  <a href="/jd/matrix">🗺 情报矩阵</a>
-  <a href="/jd/retail">🏪 竞品动向</a>
-  <a href="/jd/sources">📡 情报源</a>
-</div>
+{_jd_nav("")}
 <div class="outer">
   <div class="feed">
     <!-- Stats bar -->
@@ -1541,15 +1544,7 @@ def jd_intelligence():
   <h1>🔗 收敛情报分析</h1>
   <div class="meta">多源独立验证 · 底层趋势识别 · CTO战略合成</div>
 </div>
-<div class="nav">
-  <a href="/jd">📋 今日简报</a>
-  <a href="/jd/all">🗃 全部归档</a>
-
-  <a href="/jd/paste">✍️ 人工投稿</a>
-  <a href="/jd/matrix">🗺 情报矩阵</a>
-  <a href="/jd/retail">🏪 竞品动向</a>
-  <a href="/jd/sources">📡 情报源</a>
-</div>
+{_jd_nav("")}
 <div class="wrap">
 
   <!-- Explainer banner -->
@@ -1718,15 +1713,7 @@ def jd_paste():
   <h1>✍️ 人工投稿</h1>
   <div class="sub">微信公众号 · 社区信号 · 内部报告 · 会议纪要</div>
 </div>
-<div class="nav">
-  <a href="/jd">📋 今日简报</a>
-  <a href="/jd/all">🗃 全部归档</a>
-
-  <a href="/jd/paste" class="active">✍️ 人工投稿</a>
-  <a href="/jd/matrix">🗺 情报矩阵</a>
-  <a href="/jd/retail">🏪 竞品动向</a>
-  <a href="/jd/sources">📡 情报源</a>
-</div>
+{_jd_nav("")}
 
 <div class="wrap">
   {msg_html}
@@ -2020,14 +2007,7 @@ function copyUrl(url, btn) {{
   <h1>🏪 JD全球前沿情报系统</h1>
   <div class="meta">京东集团CTO部门 · 总裁简报原材料</div>
 </div>
-<div class="nav">
-  <a href="/jd">📋 今日简报</a>
-  <a href="/jd/all">🗃 全部归档</a>
-  <a href="/jd/matrix">🗺 情报矩阵</a>
-  <a href="/jd/retail">🏪 竞品动向</a>
-  <a href="/jd/sources">📡 情报源</a>
-  <a href="/jd/feed.xml" class="rss active" style="margin-left:auto">feed ↗</a>
-</div>
+{_jd_nav("")}
 <div class="container">
   <div class="hint">
     <strong>如何添加到 Reeder：</strong><br>
@@ -2180,6 +2160,70 @@ TEAM_TO_DOMAIN = {
 }
 
 
+def _render_matrix_table(cells_data):
+    """Return just the <table>…</table> HTML for embedding in other pages."""
+    col_labels = [label for label, _ in MATRIX_COLS]
+    col_bg  = ['#f5f3ff', '#eff6ff', '#f0fdf4', '#fff7ed', '#fdf4e7']
+    col_hdr = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#b45309']
+    row_labels = [label for label, _ in MATRIX_ROWS]
+
+    def _sc(s):
+        if s is None: return '#9ca3af'
+        return '#dc2626' if s >= 75 else '#d97706' if s >= 55 else '#6b7280'
+
+    def _card(row):
+        score = row['criteria_score'] or 0
+        title = (row['article_title'] or '')[:50]
+        if len(row['article_title'] or '') > 50: title += '…'
+        src = JD_SOURCE_MAP.get(row['feed_name'], {}).get('label', row['feed_name'])
+        pub = _parse_pub_date(row['published_date']).strftime('%-m/%-d')
+        return (f'<a href="{row["article_link"]}" target="_blank" style="display:block;'
+                f'text-decoration:none;padding:4px 6px;border-radius:4px;margin-bottom:3px;'
+                f'background:#fff;border:1px solid #e5e7eb">'
+                f'<div style="font-size:10px;font-weight:600;color:#111827;line-height:1.3;margin-bottom:2px">{title}</div>'
+                f'<div style="display:flex;justify-content:space-between">'
+                f'<span style="font-size:9px;color:#9ca3af">{src} · {pub}</span>'
+                f'<span style="font-size:9px;font-weight:700;color:{_sc(score)}">{int(score)}</span>'
+                f'</div></a>')
+
+    col_hdrs = '<th style="width:80px;border:none;background:transparent"></th>'
+    for i, (label, sub) in enumerate(MATRIX_COLS):
+        total_in_col = sum(len(cells_data.get((d, label), [])) for d in row_labels)
+        col_hdrs += (f'<th style="background:{col_hdr[i]};color:white;padding:8px 6px;'
+                     f'text-align:center;font-size:10px;border-radius:5px 5px 0 0;'
+                     f'min-width:160px;border:none">'
+                     f'<div style="font-size:12px;font-weight:700">{label}</div>'
+                     f'<div style="font-size:8px;opacity:.75;margin-top:1px">{sub}</div>'
+                     f'<div style="font-size:8px;opacity:.6">{total_in_col}篇</div></th>')
+
+    rows_html = ''
+    for ri, (row_label, row_sub) in enumerate(MATRIX_ROWS):
+        row_bg = '#fafafa' if ri % 2 == 0 else '#ffffff'
+        cells_html = ''
+        row_total = sum(len(cells_data.get((row_label, cl), [])) for cl in col_labels)
+        for ci, col_label in enumerate(col_labels):
+            arts = cells_data.get((row_label, col_label), [])
+            bg = col_bg[ci] if arts else '#f9fafb'
+            border = f'2px solid {col_hdr[ci]}22' if arts else '1px solid #f0f0f0'
+            content = (''.join(_card(a) for a in arts[:2])
+                       + (f'<div style="font-size:9px;color:#9ca3af;text-align:center;padding:2px">'
+                          f'+{len(arts)-2}篇</div>' if len(arts) > 2 else '')) if arts else (
+                '<span style="color:#d1d5db;font-size:10px">—</span>')
+            cells_html += (f'<td style="background:{bg};border:{border};padding:6px;'
+                           f'vertical-align:top">{content}</td>')
+        rows_html += (f'<tr><td style="background:{row_bg};padding:8px 6px;vertical-align:middle;'
+                      f'border-right:3px solid #e5e7eb;border-top:1px solid #f3f4f6;min-width:80px">'
+                      f'<div style="font-size:10px;font-weight:700;color:#1a1a2e">{row_label}</div>'
+                      f'<div style="font-size:8px;color:#9ca3af;margin-top:1px;line-height:1.2">{row_sub}</div>'
+                      f'<div style="font-size:8px;color:#d1d5db;margin-top:2px">{row_total}篇</div>'
+                      f'</td>{cells_html}</tr>')
+
+    return (f'<table style="border-collapse:separate;border-spacing:3px;width:100%;'
+            f'font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif">'
+            f'<thead><tr>{col_hdrs}</tr></thead>'
+            f'<tbody>{rows_html}</tbody></table>')
+
+
 def render_jd_matrix(cells_data, total_articles):
     # ── Column config (from MATRIX_COLS) ──────────────────────────────────
     col_labels = [label for label, _ in MATRIX_COLS]
@@ -2295,19 +2339,12 @@ def render_jd_matrix(cells_data, total_articles):
   <h1>🗺 JD情报矩阵</h1>
   <div class="meta">近30天 · 评分≥55分 · 纵轴：14个业务领域 · 横轴：5个团队能力方向 · 共 {total_articles} 篇入库</div>
 </div>
-<div class="nav">
-  <a href="/jd">📋 今日简报</a>
-  <a href="/jd/all">🗃 全部归档</a>
-  <a href="/jd/matrix" class="active">🗺 情报矩阵</a>
-  <a href="/jd/retail">🏪 竞品动向</a>
-  <a href="/jd/sources">📡 情报源</a>
-  <a href="/jd/feed.xml" style="margin-left:auto;color:rgba(255,255,255,.65);text-decoration:none;padding:10px 14px;font-size:13px">feed ↗</a>
-</div>
+{_jd_nav("sources")}
 <div class="wrap">
   <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">
     <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px;flex:1;min-width:200px">
       <div style="font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">纵轴 · 业务领域 Business Domain</div>
-      <div style="font-size:11px;color:#374151">14个京东核心业务领域 — 每行代表一个行业情报需求场景</div>
+      <div style="font-size:11px;color:#374151">8大业务域 — 每行代表一个行业情报需求场景</div>
     </div>
     <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px;flex:1;min-width:200px">
       <div style="font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">横轴 · 团队能力 Working Sectors</div>
@@ -2432,14 +2469,7 @@ def _old_render_jd_matrix():
   <h1>🏪 JD全球前沿情报系统</h1>
   <div class="meta">京东集团CTO部门 · 总裁简报原材料 · 按情报分排序</div>
 </div>
-<div class="nav">
-  <a href="/jd">📋 今日简报</a>
-  <a href="/jd/all">🗃 全部归档</a>
-  <a href="/jd/matrix" class="active">🗺 情报矩阵</a>
-  <a href="/jd/retail">🏪 竞品动向</a>
-  <a href="/jd/sources">📡 情报源</a>
-  <a href="/jd/feed.xml" class="rss" style="margin-left:auto">feed ↗</a>
-</div>
+{_jd_nav("sources")}
 <div class="wrap">
   <!-- Three-dimension legend -->
   <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">
@@ -2477,6 +2507,12 @@ def _old_render_jd_matrix():
 
 @app.route('/jd/matrix')
 def jd_matrix():
+    from flask import redirect as _redirect
+    return _redirect('/jd/sources')
+
+
+@app.route('/jd/_matrix')
+def jd_matrix_internal():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     rows = conn.execute("""
@@ -2685,10 +2721,7 @@ def jd_capital():
     {"· <span style='color:#fbbf24'>⏳ " + str(pending) + " 篇评分中，页面每25秒自动刷新…</span>" if pending > 0 else "· ✅ 全部评分完成"}
   </div>
 </div>
-<div class="nav">
-  <a href="/jd">← 返回今日简报</a>
-  <a href="/jd/all">全部归档</a>
-</div>
+{_jd_nav("")}
 <div class="wrap">
   <div style="margin-bottom:14px;font-size:11px;color:#6b7280">
     覆盖来源：{' · '.join(CAPITAL_LABELS.values())}
@@ -2715,6 +2748,40 @@ def jd_capital():
 
 @app.route('/jd/sources')
 def jd_sources():
+    # ── Build matrix section ──────────────────────────────────────────────
+    conn_m = sqlite3.connect(DB_PATH)
+    conn_m.row_factory = sqlite3.Row
+    matrix_rows = conn_m.execute("""
+        SELECT id, feed_name, article_title, article_link,
+               published_date, criteria_score, criteria
+        FROM articles
+        WHERE feed_name LIKE 'jd-%'
+          AND criteria_score >= 55
+          AND published_date >= date('now', '-30 days')
+          AND criteria IS NOT NULL
+        ORDER BY criteria_score DESC
+        LIMIT 600
+    """).fetchall()
+    conn_m.close()
+    matrix_cells = {}
+    for row in matrix_rows:
+        try:
+            bd = json.loads(row['criteria'])
+            teams = bd.get('primary_teams') or bd.get('relevant_teams') or []
+            domain = FEED_DOMAIN_MAP.get(row['feed_name'], '')
+            if not domain and teams:
+                domain = TEAM_TO_DOMAIN.get(teams[0], '')
+            col = ''
+            for t in teams:
+                col = TEAM_TO_COL.get(t, '')
+                if col:
+                    break
+            if domain and col:
+                matrix_cells.setdefault((domain, col), []).append(row)
+        except Exception:
+            pass
+    matrix_section_html = _render_matrix_table(matrix_cells)
+
     stats = _get_source_stats()
     rss_count = len(JD_SOURCES)
     total_articles = sum(s.get('total', 0) for s in stats.values())
@@ -3371,13 +3438,7 @@ def jd_sources():
   <h1>🏪 JD全球前沿情报系统</h1>
   <div class="meta">京东集团CTO部门 · 情报源全景 · Layer 1 原材料收集</div>
 </div>
-<div class="nav">
-  <a href="/jd">📋 今日简报</a>
-  <a href="/jd/all">🗃 全部归档</a>
-  <a href="/jd/matrix">🗺 情报矩阵</a>
-  <a href="/jd/sources" class="active">📡 情报源</a>
-  <a href="/jd/feed.xml" class="rss">RSS ↗</a>
-</div>
+{_jd_nav("sources")}
 <div class="container">
   <div class="kpi-row">
     <div class="kpi"><div class="n">{total_planned}</div><div class="l">规划情报源总数</div></div>
@@ -3399,6 +3460,294 @@ def jd_sources():
     <strong>📐 评分说明：</strong>
     自动抓取源通过 DeepSeek AI 按四维模型打分 — 京东业务相关性(40分) · 来源层级(25分) · 新鲜度(25分) · 信号收敛(10分)。
     评分≥55分进入简报候选池。付费/人工/待接入源为 Layer 1 扩展计划，Layer 2（信号关联）和 Layer 3（战略合成）将在后续建设。
+  </div>
+
+  <!-- ── 情报矩阵 embedded ── -->
+  <div style="margin-top:36px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;
+                padding-bottom:10px;border-bottom:2px solid #e5e7eb">
+      <span style="font-size:22px">🗺</span>
+      <div>
+        <div style="font-size:15px;font-weight:700;color:#1a1a2e">情报矩阵</div>
+        <div style="font-size:11px;color:#9ca3af">近30天 · 评分≥55 · 8大业务域 × 5个团队能力方向</div>
+      </div>
+      <a href="/jd/_matrix" target="_blank"
+         style="margin-left:auto;font-size:11px;color:#2563eb;text-decoration:none;
+                background:#eff6ff;border:1px solid #bfdbfe;padding:4px 10px;border-radius:6px">
+        全屏查看 ↗</a>
+    </div>
+    <div style="overflow-x:auto">
+      {matrix_section_html}
+    </div>
+  </div>
+</div>
+</body>
+</html>'''
+
+
+@app.route('/jd/buzz')
+def jd_buzz():
+    import re as _re
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    # ── 1. Multi-KOL convergence via x_endorsements ───────────────────────
+    # Group by linked_url; sum endorser_weight; pick top articles
+    xe_rows = conn.execute("""
+        SELECT xe.linked_url, xe.endorser_handle, xe.endorser_weight, xe.tweet_date,
+               a.article_title, a.id as tweet_id
+        FROM x_endorsements xe
+        JOIN articles a ON xe.tweet_article_id = a.id
+        WHERE xe.tweet_date >= date('now', '-21 days')
+        ORDER BY xe.tweet_date DESC
+    """).fetchall()
+
+    # Aggregate by linked_url
+    url_map = {}
+    for r in xe_rows:
+        url = r['linked_url'] or ''
+        if not url or len(url) < 10:
+            continue
+        # Normalise URL (strip trailing slashes, anchors)
+        url_clean = url.split('#')[0].rstrip('/')
+        if url_clean not in url_map:
+            url_map[url_clean] = {'url': url_clean, 'endorsers': [], 'weight': 0.0, 'latest': r['tweet_date']}
+        entry = url_map[url_clean]
+        if r['endorser_handle'] not in [e[0] for e in entry['endorsers']]:
+            entry['endorsers'].append((r['endorser_handle'], r['endorser_weight']))
+            entry['weight'] += r['endorser_weight']
+        if r['tweet_date'] > entry['latest']:
+            entry['latest'] = r['tweet_date']
+
+    # Sort by combined weight DESC, keep top 12 with ≥2 endorsers or weight ≥0.30
+    convergence = sorted(
+        [v for v in url_map.values() if v['weight'] >= 0.20],
+        key=lambda x: (-x['weight'], x['latest']),
+    )[:12]
+
+    # ── 2. HN posts ranked by Points ─────────────────────────────────────
+    hn_all = conn.execute("""
+        SELECT article_title, article_link, published_date, raw_content, criteria_score
+        FROM articles
+        WHERE feed_name = 'jd-hackernews'
+          AND raw_content IS NOT NULL
+          AND published_date >= date('now', '-30 days')
+        ORDER BY published_date DESC
+        LIMIT 200
+    """).fetchall()
+
+    def _parse_points(rc):
+        m = _re.search(r'Points:\s*(\d+)', rc or '')
+        return int(m.group(1)) if m else 0
+
+    def _parse_comments(rc):
+        m = _re.search(r'#\s*Comments:\s*(\d+)', rc or '')
+        return int(m.group(1)) if m else 0
+
+    def _hn_comments_url(rc):
+        m = _re.search(r'Comments URL.*?href="([^"]+)"', rc or '')
+        return m.group(1) if m else ''
+
+    hn_scored = []
+    for r in hn_all:
+        pts = _parse_points(r['raw_content'])
+        cmts = _parse_comments(r['raw_content'])
+        if pts > 0 or cmts > 0:
+            hn_scored.append({'title': r['article_title'], 'link': r['article_link'],
+                              'pub': r['published_date'], 'points': pts, 'comments': cmts,
+                              'comments_url': _hn_comments_url(r['raw_content']),
+                              'ai_score': r['criteria_score']})
+    hn_scored.sort(key=lambda x: -x['points'])
+    hn_top = hn_scored[:20]
+
+    # ── 3. KOL individual posts (tier1 first, by recency) ────────────────
+    kol_rows = conn.execute("""
+        SELECT feed_name, article_title, article_link, published_date
+        FROM articles
+        WHERE feed_name LIKE 'jd-twitter%'
+          AND published_date >= date('now', '-14 days')
+        ORDER BY feed_priority ASC, published_date DESC
+    """).fetchall()
+    conn.close()
+
+    # Group by person
+    kol_posts = {}
+    for r in kol_rows:
+        fn = r['feed_name']
+        if fn not in TWITTER_PERSON_MAP:
+            continue
+        if fn not in kol_posts:
+            kol_posts[fn] = []
+        if len(kol_posts[fn]) < 4:
+            kol_posts[fn].append(dict(r))
+
+    # Sort KOLs by endorser weight DESC
+    kol_order = sorted(kol_posts.keys(),
+                       key=lambda fn: -X_ENDORSER_WEIGHTS.get(
+                           TWITTER_PERSON_MAP[fn][0].split()[0].replace('@','').lower(), 0))
+
+    # ── Build HTML ────────────────────────────────────────────────────────
+    def _kol_post_html(p, fn):
+        raw = p['article_title'] or ''
+        is_rt = raw.startswith('RT by @') or raw.startswith('R to @')
+        text = raw[raw.find(': ')+2:] if ': ' in raw[:30] else raw
+        text_s = text[:160] + '…' if len(text) > 160 else text
+        pub = _parse_pub_date(p['published_date']).strftime('%-m/%-d')
+        rt_tag = ('<span style="font-size:9px;background:#f3f4f6;color:#9ca3af;'
+                  'border-radius:3px;padding:0 4px;margin-right:3px">RT</span>') if is_rt else ''
+        return (f'<div style="padding:7px 0;border-top:1px solid #f3f4f6;font-size:11px;'
+                f'color:#374151;line-height:1.5">{rt_tag}'
+                f'<a href="{p["article_link"]}" target="_blank" '
+                f'style="color:#374151;text-decoration:none">{text_s}</a>'
+                f'<span style="font-size:9px;color:#d1d5db;margin-left:6px">{pub}</span></div>')
+
+    kol_cards_html = ''
+    for fn in kol_order:
+        if not kol_posts.get(fn):
+            continue
+        name, emoji, role = TWITTER_PERSON_MAP[fn]
+        handle = fn.replace('jd-twitter-', '')
+        weight = X_ENDORSER_WEIGHTS.get(handle, X_ENDORSER_WEIGHTS.get(handle.lower(), 0))
+        w_color = '#b45309' if weight >= 0.25 else '#1d4ed8' if weight >= 0.18 else '#6b7280'
+        posts_html = ''.join(_kol_post_html(p, fn) for p in kol_posts[fn])
+        kol_cards_html += (
+            f'<div style="background:white;border:1px solid #e5e7eb;border-radius:8px;'
+            f'padding:12px 14px;margin-bottom:10px">'
+            f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
+            f'<span style="font-size:18px">{emoji}</span>'
+            f'<div style="flex:1">'
+            f'<div style="font-size:13px;font-weight:700;color:#111827">{name}</div>'
+            f'<div style="font-size:10px;color:#9ca3af">{role}'
+            f' · <span style="color:{w_color};font-weight:600">信号权重×{weight:.2f}</span></div>'
+            f'</div></div>'
+            f'{posts_html}</div>'
+        )
+
+    # Multi-KOL convergence cards
+    convergence_html = ''
+    for item in convergence:
+        url = item['url']
+        weight = item['weight']
+        endorsers = item['endorsers']
+        # Try to make a readable title from the URL domain
+        from urllib.parse import urlparse as _up
+        try:
+            domain = _up(url).netloc.replace('www.', '')
+        except Exception:
+            domain = url[:40]
+        endorser_chips = ' '.join(
+            f'<span style="font-size:10px;background:#eff6ff;color:#1d4ed8;'
+            f'border:1px solid #bfdbfe;border-radius:4px;padding:1px 6px;font-weight:600">'
+            f'@{h}</span>'
+            for h, _ in endorsers
+        )
+        w_bar_pct = min(100, int(weight / 0.6 * 100))
+        convergence_html += (
+            f'<div style="background:white;border:1px solid #e5e7eb;border-left:4px solid #7c3aed;'
+            f'border-radius:8px;padding:12px 14px;margin-bottom:8px">'
+            f'<div style="display:flex;align-items:flex-start;gap:10px;justify-content:space-between">'
+            f'<a href="{url}" target="_blank" style="font-size:12px;font-weight:600;color:#111827;'
+            f'text-decoration:none;line-height:1.5;flex:1">{domain}</a>'
+            f'<div style="flex-shrink:0;text-align:right">'
+            f'<div style="font-size:12px;font-weight:700;color:#7c3aed">×{weight:.2f}</div>'
+            f'<div style="font-size:9px;color:#9ca3af">综合权重</div>'
+            f'<div style="height:4px;width:60px;background:#f3f4f6;border-radius:2px;margin-top:3px">'
+            f'<div style="height:100%;width:{w_bar_pct}%;background:#7c3aed;border-radius:2px"></div></div>'
+            f'</div></div>'
+            f'<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">{endorser_chips}</div>'
+            f'</div>'
+        )
+
+    if not convergence_html:
+        convergence_html = '<div style="color:#9ca3af;font-size:12px;padding:16px">近21天无多KOL共鸣数据</div>'
+
+    # HN cards
+    hn_html = ''
+    for i, item in enumerate(hn_top):
+        pts = item['points']
+        cmts = item['comments']
+        pub = _parse_pub_date(item['pub']).strftime('%-m/%-d')
+        heat = min(100, pts // 3)
+        heat_color = '#dc2626' if pts >= 200 else '#d97706' if pts >= 80 else '#6b7280'
+        cmt_url = item['comments_url'] or item['link']
+        hn_html += (
+            f'<div style="padding:10px 0;border-top:1px solid #f3f4f6;'
+            f'display:flex;gap:10px;align-items:flex-start">'
+            f'<div style="flex-shrink:0;width:44px;text-align:center">'
+            f'<div style="font-size:14px;font-weight:700;color:{heat_color}">{pts}</div>'
+            f'<div style="font-size:9px;color:#9ca3af">pts</div>'
+            f'<div style="height:3px;width:100%;background:#f3f4f6;border-radius:2px;margin-top:2px">'
+            f'<div style="height:100%;width:{heat}%;background:{heat_color};border-radius:2px"></div></div>'
+            f'</div>'
+            f'<div style="flex:1;min-width:0">'
+            f'<a href="{item["link"]}" target="_blank" style="font-size:12px;font-weight:600;'
+            f'color:#111827;text-decoration:none;line-height:1.5;display:block">{item["title"]}</a>'
+            f'<div style="font-size:10px;color:#9ca3af;margin-top:3px">'
+            f'{pub} · <a href="{cmt_url}" target="_blank" style="color:#9ca3af;text-decoration:none">'
+            f'💬 {cmts}条评论</a></div>'
+            f'</div></div>'
+        )
+    if not hn_html:
+        hn_html = '<div style="color:#9ca3af;font-size:12px;padding:16px">近30天无HN热帖数据</div>'
+
+    return f'''<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JD社区热议</title>
+<style>
+  * {{ box-sizing:border-box }}
+  body {{ margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+          background:#f3f4f6;color:#1a1a2e }}
+  .header {{ background:linear-gradient(135deg,#1a1a2e,#16213e);color:white;padding:20px 32px }}
+  .header h1 {{ margin:0 0 4px;font-size:20px;font-weight:700 }}
+  .header .meta {{ font-size:12px;opacity:.65 }}
+  .nav {{ background:#16213e;padding:0 32px;display:flex;align-items:center }}
+  .nav a {{ color:rgba(255,255,255,.65);text-decoration:none;padding:10px 14px;
+            font-size:13px;border-bottom:2px solid transparent;display:inline-block }}
+  .nav a:hover,.nav a.active {{ color:white;border-bottom-color:#e74c3c }}
+  .wrap {{ max-width:1100px;margin:24px auto;padding:0 20px }}
+  .two-col {{ display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start }}
+  @media(max-width:800px) {{ .two-col {{ grid-template-columns:1fr }} }}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🔥 社区热议</h1>
+  <div class="meta">基于人类热度信号 · 点赞 / 转发 / 评论 · 非AI判断</div>
+</div>
+{_jd_nav("buzz")}
+<div class="wrap">
+  <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px 16px;
+              margin-bottom:20px;font-size:12px;color:#92400e;line-height:1.7">
+    <strong>📌 排名逻辑</strong> — 本页内容完全基于人类行为信号，不依赖AI评分。
+    HN热帖按真实点赞数(Points)降序；KOL共鸣按顶级意见领袖的转发/引用次数及权重聚合；KOL动态按发布者影响力权重排序。
+  </div>
+
+  <!-- ── 多KOL共鸣 ── -->
+  <div style="margin-bottom:32px">
+    <div style="font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:4px">🔗 多KOL共鸣</div>
+    <div style="font-size:11px;color:#9ca3af;margin-bottom:12px">被多位顶级KOL引用的内容 · 近21天 · 按综合权重排序</div>
+    {convergence_html}
+  </div>
+
+  <div class="two-col">
+    <!-- ── HN热帖 ── -->
+    <div>
+      <div style="font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:4px">🔗 Hacker News热帖</div>
+      <div style="font-size:11px;color:#9ca3af;margin-bottom:12px">按点赞数(Points)降序 · 近30天</div>
+      <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px">
+        {hn_html}
+      </div>
+    </div>
+
+    <!-- ── KOL近期动态 ── -->
+    <div>
+      <div style="font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:4px">💬 KOL近期动态</div>
+      <div style="font-size:11px;color:#9ca3af;margin-bottom:12px">按影响力权重排序 · 近14天</div>
+      {kol_cards_html or '<div style="color:#9ca3af;font-size:12px;padding:16px">无KOL动态</div>'}
+    </div>
   </div>
 </div>
 </body>
@@ -3849,14 +4198,7 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60,
   <h1>🏪 竞品与行业动向</h1>
   <div class="meta">8大业务域跨来源收敛分析 · 近{days}天 · 共 {total_clusters} 个收敛聚类</div>
 </div>
-<div class="nav">
-  <a href="/jd">📋 今日简报</a>
-  <a href="/jd/all">🗃 全部归档</a>
-  <a href="/jd/matrix">🗺 情报矩阵</a>
-  <a href="/jd/retail" class="active">🏪 竞品动向</a>
-  <a href="/jd/sources">📡 情报源</a>
-  <a href="/jd/feed.xml" style="margin-left:auto;color:rgba(255,255,255,.65);text-decoration:none;padding:10px 14px;font-size:13px">feed ↗</a>
-</div>
+{_jd_nav("retail")}
 <div class="wrap">
   <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;
               margin-bottom:16px;font-size:12px;color:#92400e;line-height:1.7">
