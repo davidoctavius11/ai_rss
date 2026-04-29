@@ -103,6 +103,24 @@ GANMIE_SEGMENTS = [
 
 
 def build_convergence_prompt(segment_label, articles_json):
+    example = (
+        '{"theme_label":"多模态搜索商品化",'
+        '"article_indices":[0,2],'
+        '"why_convergent":"Amazon发布Nova多模态搜索API，学术论文同步验证属性级细粒度嵌入方案，产品与研究双路印证。",'
+        '"synthesis_text":"多模态搜索从实验室走向产品，京东商品图文数据优势需转化为多模态索引能力，否则竞对将率先建立体验壁垒。",'
+        '"strategic_question":"我们的搜索是否已具备视频/图像级理解能力？",'
+        '"recommended_action":"搜索算法团队 — 启动多模态嵌入POC — 一个月内",'
+        '"convergence_score":85,'
+        '"shipped_product":"Amazon Nova多模态嵌入API — 已面向开发者开放，支持图文视频联合检索",'
+        '"value_experience":"用户可用图片或视频直接搜商品，减少关键词输入摩擦，提升发现效率",'
+        '"value_cost":"向量化索引替代关键词召回可降低查询成本约30%，减少无效流量",'
+        '"value_efficiency":"多模态嵌入使商品理解精度提升，降低人工标注依赖",'
+        '"maturity":"growing",'
+        '"leader_names":"Amazon、阿里通义万象",'
+        '"leader_type":"competitor",'
+        '"reaction":"act",'
+        '"lean_in_teams":"搜索推荐算法团队、AIGC平台"}'
+    )
     return (
         "你是一位零售行业情报分析师，专注于识别多来源独立印证同一趋势的收敛信号。\n\n"
         "以下是来自不同来源的文章列表，它们都与零售产业链「" + segment_label + "」环节有关：\n\n"
@@ -113,13 +131,22 @@ def build_convergence_prompt(segment_label, articles_json):
         "对每个收敛主题，输出以下字段：\n"
         "- theme_label: 简短主题标签（10字以内）\n"
         "- article_indices: 参与收敛的文章编号列表（从0开始）\n"
-        "- why_convergent: 为什么这些文章构成收敛信号（100字以内）\n"
-        "- synthesis_text: 给京东CTO的情报综合（150字以内，直接说对京东意味着什么）\n"
+        "- why_convergent: 为什么这些文章构成收敛信号（80字以内）\n"
+        "- synthesis_text: 给京东CTO的情报综合（120字以内，直接说对京东意味着什么）\n"
         "- strategic_question: 这个信号给京东团队留下的核心问题（一句话）\n"
         "- recommended_action: 建议行动（团队+动作+时间窗口，一句话）\n"
-        "- convergence_score: 收敛强度评分0-100\n\n"
-        "仅输出JSON数组，如无收敛信号返回[]。"
-        ' 示例: [{"theme_label":"...","article_indices":[0,2],"why_convergent":"...","synthesis_text":"...","strategic_question":"...","recommended_action":"...","convergence_score":85}]'
+        "- convergence_score: 收敛强度评分0-100\n"
+        "- shipped_product: 已实际发布给终端用户的具体产品/技术/服务名称及一句话描述（尚未商业化则填'尚未商业化'）\n"
+        "- value_experience: 该产品/技术对用户体验（体验）的影响，1-2句，要具体\n"
+        "- value_cost: 对成本结构（成本）的影响，1-2句，要具体\n"
+        "- value_efficiency: 对运营效率（效率）的影响，1-2句，要具体\n"
+        "- maturity: 成熟度，只能是 early（早期探索）/ growing（快速扩张）/ mature（成熟落地）之一\n"
+        "- leader_names: 领跑者公司/团队名称，2-3个，逗号分隔\n"
+        "- leader_type: 领跑者与京东关系，只能是 competitor / partner / neutral / mixed 之一\n"
+        "- reaction: 京东建议态度，只能是 ignore / monitor / act 之一\n"
+        "- lean_in_teams: 建议介入或给出判断的京东团队，2-3个，逗号分隔\n\n"
+        "仅输出JSON数组，如无收敛信号返回[]。\n"
+        "示例单条格式：\n[" + example + "]"
     )
 
 
@@ -178,7 +205,7 @@ def run_convergence(client, segment_label, articles, dry_run=False):
             model='deepseek-chat',
             messages=[{'role': 'user', 'content': prompt}],
             temperature=0.3,
-            max_tokens=2000,
+            max_tokens=4000,
         )
         raw = resp.choices[0].message.content.strip()
         if raw.startswith('```'):
@@ -200,6 +227,11 @@ def save_clusters(conn, seg_key, seg_label, clusters, rows, source_map):
     except Exception:
         STANDPOINT_MAP = {}
 
+    ACTION_FIELDS = [
+        'shipped_product', 'value_experience', 'value_cost', 'value_efficiency',
+        'maturity', 'leader_names', 'leader_type', 'reaction', 'lean_in_teams',
+    ]
+
     for cluster in clusters:
         indices = cluster.get('article_indices', [])
         matched = [rows[i] for i in indices if i < len(rows)]
@@ -207,6 +239,11 @@ def save_clusters(conn, seg_key, seg_label, clusters, rows, source_map):
             continue
         feed_names = [r['feed_name'] for r in matched]
         standpoints = list({STANDPOINT_MAP.get(f, '') for f in feed_names if STANDPOINT_MAP.get(f)})
+
+        action_data = json.dumps(
+            {k: cluster.get(k, '') for k in ACTION_FIELDS},
+            ensure_ascii=False
+        )
 
         existing = conn.execute(
             "SELECT id FROM intelligence_clusters WHERE theme_label=? AND scope=? "
@@ -222,8 +259,8 @@ def save_clusters(conn, seg_key, seg_label, clusters, rows, source_map):
             "(theme_label, article_ids, article_titles, article_feed_names, "
             "article_links, article_scores, domains, standpoints, "
             "source_count, convergence_score, why_convergent, synthesis_text, "
-            "strategic_question, recommended_action, created_at, scope) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "strategic_question, recommended_action, created_at, scope, action_data) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 cluster['theme_label'],
                 json.dumps([r['id'] for r in matched]),
@@ -241,6 +278,7 @@ def save_clusters(conn, seg_key, seg_label, clusters, rows, source_map):
                 cluster.get('recommended_action', ''),
                 datetime.now(timezone.utc).isoformat(),
                 seg_key,
+                action_data,
             )
         )
         saved += 1
@@ -256,6 +294,10 @@ def ensure_scope_column(conn):
         conn.execute("ALTER TABLE intelligence_clusters ADD COLUMN scope TEXT DEFAULT ''")
         conn.commit()
         print('[init] added scope column to intelligence_clusters')
+    if 'action_data' not in cols:
+        conn.execute("ALTER TABLE intelligence_clusters ADD COLUMN action_data TEXT DEFAULT ''")
+        conn.commit()
+        print('[init] added action_data column to intelligence_clusters')
 
 
 def main():

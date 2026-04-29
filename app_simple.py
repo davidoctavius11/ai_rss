@@ -3550,8 +3550,77 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60):
         scores  = json.loads(cl['article_scores'] or '[]')
         sps     = json.loads(cl['standpoints'] or '[]')
 
+        try:
+            ad = json.loads(cl['action_data'] or '{}')
+        except Exception:
+            ad = {}
+
+        shipped     = ad.get('shipped_product', '')
+        v_exp       = ad.get('value_experience', '')
+        v_cost      = ad.get('value_cost', '')
+        v_eff       = ad.get('value_efficiency', '')
+        maturity    = ad.get('maturity', '')
+        leader_n    = ad.get('leader_names', '')
+        leader_t    = ad.get('leader_type', '')
+        reaction    = ad.get('reaction', '')
+        teams       = ad.get('lean_in_teams', '')
+
+        # maturity badge
+        maturity_cfg = {
+            'early':   ('早期探索', '#f0fdf4', '#059669', '#bbf7d0'),
+            'growing': ('快速扩张', '#fff7ed', '#d97706', '#fed7aa'),
+            'mature':  ('成熟落地', '#eff6ff', '#2563eb', '#bfdbfe'),
+        }
+        mc = maturity_cfg.get(maturity, (maturity or '—', '#f3f4f6', '#6b7280', '#e5e7eb'))
+        maturity_html = (f'<span style="font-size:9px;font-weight:600;background:{mc[1]};'
+                         f'color:{mc[2]};border:1px solid {mc[3]};padding:2px 7px;'
+                         f'border-radius:5px">{mc[0]}</span>')
+
+        # leader type badge
+        lt_cfg = {
+            'competitor': ('竞对', '#fef2f2', '#dc2626', '#fecaca'),
+            'partner':    ('潜在合作', '#f0fdf4', '#059669', '#bbf7d0'),
+            'neutral':    ('中立研究', '#f5f3ff', '#7c3aed', '#ddd6fe'),
+            'mixed':      ('竞合混合', '#fff7ed', '#d97706', '#fed7aa'),
+        }
+        ltc = lt_cfg.get(leader_t, ('', '#f3f4f6', '#6b7280', '#e5e7eb'))
+        leader_html = ''
+        if leader_n:
+            lt_badge = (f'<span style="font-size:9px;font-weight:600;background:{ltc[1]};'
+                        f'color:{ltc[2]};border:1px solid {ltc[3]};padding:2px 7px;border-radius:5px">'
+                        f'{ltc[0]}</span>') if ltc[0] else ''
+            leader_html = (f'<div style="font-size:11px;color:#374151;margin-top:4px">'
+                           f'<strong style="color:#6b7280">领跑：</strong>{leader_n} {lt_badge}</div>')
+
+        # reaction badge
+        rx_cfg = {
+            'ignore':  ('忽略', '#f3f4f6', '#6b7280', '⬜'),
+            'monitor': ('持续跟踪', '#fffbeb', '#92400e', '👁'),
+            'act':     ('立即行动', '#fef2f2', '#dc2626', '🔴'),
+        }
+        rxc = rx_cfg.get(reaction, ('—', '#f3f4f6', '#6b7280', ''))
+        reaction_html = (f'<span style="font-size:11px;font-weight:700;color:{rxc[2]}">'
+                         f'{rxc[3]} 建议态度：{rxc[0]}</span>') if reaction else ''
+        teams_html = (f'<span style="font-size:11px;color:#374151;margin-left:12px">'
+                      f'<strong style="color:#6b7280">介入团队：</strong>{teams}</span>') if teams else ''
+
+        # value triptych — only render if any value field present
+        value_html = ''
+        if v_exp or v_cost or v_eff:
+            def _vbox(label, text, color):
+                return (f'<div style="flex:1;min-width:0;background:{color}08;border:1px solid {color}20;'
+                        f'border-radius:6px;padding:8px 10px">'
+                        f'<div style="font-size:9px;font-weight:700;color:{color};margin-bottom:4px;letter-spacing:.5px">{label}</div>'
+                        f'<div style="font-size:11px;color:#374151;line-height:1.5">{text or "—"}</div>'
+                        f'</div>')
+            value_html = (f'<div style="display:flex;gap:8px;margin:10px 0">'
+                          + _vbox('体验', v_exp, '#2563eb')
+                          + _vbox('成本', v_cost, '#059669')
+                          + _vbox('效率', v_eff, '#d97706')
+                          + '</div>')
+
         sources_html = ''
-        for i, (f, t, lk, sc) in enumerate(zip(feeds, titles, links, scores)):
+        for f, t, lk, sc in zip(feeds, titles, links, scores):
             lbl = JD_SOURCE_MAP.get(f, {}).get('label', f)
             sp  = STANDPOINT_MAP.get(f, '')
             sources_html += (
@@ -3569,6 +3638,18 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60):
 
         sps_html = ' '.join(sp_pill(s) for s in sps if s)
 
+        shipped_html = ''
+        if shipped and shipped != '尚未商业化':
+            shipped_html = (f'<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;'
+                            f'padding:8px 12px;margin-bottom:8px">'
+                            f'<span style="font-size:9px;font-weight:700;color:#059669;letter-spacing:.5px">📦 已落地产品/技术</span>'
+                            f'<div style="font-size:12px;color:#1a1a2e;margin-top:3px;font-weight:500">{shipped}</div>'
+                            f'</div>')
+        elif shipped == '尚未商业化':
+            shipped_html = (f'<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;'
+                            f'padding:6px 12px;margin-bottom:8px;font-size:11px;color:#9ca3af">'
+                            f'🔬 尚未商业化落地</div>')
+
         return f'''<div style="border:1px solid #e5e7eb;border-left:4px solid {seg_color};
                        border-radius:8px;margin-bottom:14px;background:white;overflow:hidden">
   <div style="padding:14px 16px;background:{seg_color}08">
@@ -3576,15 +3657,21 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60):
       <div style="font-size:14px;font-weight:700;color:#1a1a2e">{theme}</div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
         {sps_html}
+        {maturity_html}
         <span style="font-size:12px;font-weight:700;color:{score_color(score)}">{score}</span>
       </div>
     </div>
     <div style="font-size:11px;color:#6b7280;line-height:1.6">{why}</div>
   </div>
   <div style="padding:12px 16px">
+    {shipped_html}
+    {value_html}
+    {leader_html}
     {sources_html}
   </div>
+  {f'<div style="padding:8px 16px;background:#f9fafb;border-top:1px solid #f3f4f6;font-size:11px;color:#374151;line-height:1.7">{synth}</div>' if synth else ''}
   {f'<div style="padding:10px 16px;background:#fffbeb;border-top:1px solid #fde68a"><div style="font-size:11px;color:#92400e;line-height:1.6"><strong>🔍 {sq}</strong></div><div style="font-size:11px;color:#78350f;margin-top:4px">📋 {action}</div></div>' if sq or action else ''}
+  {f'<div style="padding:8px 16px;background:#fef2f2;border-top:1px solid #fecaca;display:flex;align-items:center;flex-wrap:wrap;gap:4px">{reaction_html}{teams_html}</div>' if reaction else ''}
 </div>'''
 
     # ── Build segment blocks ───────────────────────────────────────────────
