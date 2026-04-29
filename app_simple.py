@@ -3488,42 +3488,80 @@ def jd_sources():
 @app.route('/jd/buzz')
 def jd_buzz():
     import re as _re
+    from urllib.parse import urlparse as _up
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
 
-    # ── 1. Multi-KOL convergence via x_endorsements ───────────────────────
-    # Group by linked_url; sum endorser_weight; pick top articles
+    # Skip-list: redirect/shortener domains that tell us nothing
+    _BAD_DOMAINS = {'bitly.com', 'ebx.sh', 't.co', 'buff.ly', 'ow.ly', 'bit.ly',
+                    'dlvr.it', 'ift.tt', 'tinyurl.com', 'feedproxy.google.com'}
+
+    def _clean_url(url):
+        if not url or len(url) < 15:
+            return None
+        if any(c in url for c in ('"', '<', '>', '%22')):
+            return None
+        u = url.split('#')[0].rstrip('/')
+        try:
+            dom = _up(u).netloc.lower().replace('www.', '')
+        except Exception:
+            return None
+        if dom in _BAD_DOMAINS:
+            return None
+        return u
+
+    def _tweet_text(raw_content):
+        """Strip HTML from tweet raw_content → clean readable text."""
+        text = _re.sub(r'<[^>]+>', ' ', raw_content or '')
+        text = _re.sub(r'&amp;', '&', text)
+        text = _re.sub(r'&lt;', '<', text)
+        text = _re.sub(r'&gt;', '>', text)
+        text = _re.sub(r'\s+', ' ', text).strip()
+        return text
+
+    # ── 1. KOL推荐阅读 — top external links shared by high-weight KOLs ──────
+    # Deduplicate by (handle, clean_url) so one tweet doesn't spawn N cards
     xe_rows = conn.execute("""
         SELECT xe.linked_url, xe.endorser_handle, xe.endorser_weight, xe.tweet_date,
-               a.article_title, a.id as tweet_id
+               a.article_title as tweet_title, a.raw_content as tweet_raw
         FROM x_endorsements xe
         JOIN articles a ON xe.tweet_article_id = a.id
-        WHERE xe.tweet_date >= date('now', '-21 days')
-        ORDER BY xe.tweet_date DESC
+        WHERE xe.linked_url IS NOT NULL
+        ORDER BY xe.endorser_weight DESC, xe.tweet_date DESC
     """).fetchall()
 
-    # Aggregate by linked_url
-    url_map = {}
+    seen_handle_url = set()
+    kol_links = []          # list of dicts, one per unique (handle, url)
     for r in xe_rows:
-        url = r['linked_url'] or ''
-        if not url or len(url) < 10:
+        url = _clean_url(r['linked_url'])
+        if not url:
             continue
-        # Normalise URL (strip trailing slashes, anchors)
-        url_clean = url.split('#')[0].rstrip('/')
-        if url_clean not in url_map:
-            url_map[url_clean] = {'url': url_clean, 'endorsers': [], 'weight': 0.0, 'latest': r['tweet_date']}
-        entry = url_map[url_clean]
-        if r['endorser_handle'] not in [e[0] for e in entry['endorsers']]:
-            entry['endorsers'].append((r['endorser_handle'], r['endorser_weight']))
-            entry['weight'] += r['endorser_weight']
-        if r['tweet_date'] > entry['latest']:
-            entry['latest'] = r['tweet_date']
-
-    # Sort by combined weight DESC, keep top 12 with ≥2 endorsers or weight ≥0.30
-    convergence = sorted(
-        [v for v in url_map.values() if v['weight'] >= 0.20],
-        key=lambda x: (-x['weight'], x['latest']),
-    )[:12]
+        key = (r['endorser_handle'], url)
+        if key in seen_handle_url:
+            continue
+        seen_handle_url.add(key)
+        tweet_text = _tweet_text(r['tweet_raw'])
+        # Strip "RT by @handle:" prefix for cleaner display
+        display_text = tweet_text
+        if display_text.startswith('RT by @') or display_text.startswith('R to @'):
+            colon = display_text.find(': ')
+            if colon > 0:
+                display_text = display_text[colon+2:]
+        # Skip if tweet text is too short to be useful (just a URL share with no commentary)
+        try:
+            dom = _up(url).netloc.replace('www.', '')
+        except Exception:
+            dom = url[:40]
+        kol_links.append({
+            'url': url, 'domain': dom,
+            'handle': r['endorser_handle'],
+            'weight': r['endorser_weight'],
+            'date': r['tweet_date'],
+            'tweet_title': r['tweet_title'] or '',
+            'summary': display_text,
+        })
+        if len(kol_links) >= 30:
+            break
 
     # ── 2. HN posts ranked by Points ─────────────────────────────────────
     hn_all = conn.execute("""
@@ -3548,6 +3586,18 @@ def jd_buzz():
         m = _re.search(r'Comments URL.*?href="([^"]+)"', rc or '')
         return m.group(1) if m else ''
 
+    def _hn_summary(rc):
+        """Extract article body text from HN raw_content (Show HN posts often have it)."""
+        text = _re.sub(r'<[^>]+>', ' ', rc or '')
+        text = _re.sub(r'\s+', ' ', text).strip()
+        # Skip boilerplate: remove "Article URL: ..." and "Comments URL: ..." lines
+        text = _re.sub(r'Article URL:\s*\S+', '', text)
+        text = _re.sub(r'Comments URL:\s*\S+', '', text)
+        text = _re.sub(r'Points:\s*\d+', '', text)
+        text = _re.sub(r'#\s*Comments:\s*\d+', '', text)
+        text = _re.sub(r'\s+', ' ', text).strip()
+        return text if len(text) > 40 else ''
+
     hn_scored = []
     for r in hn_all:
         pts = _parse_points(r['raw_content'])
@@ -3556,13 +3606,14 @@ def jd_buzz():
             hn_scored.append({'title': r['article_title'], 'link': r['article_link'],
                               'pub': r['published_date'], 'points': pts, 'comments': cmts,
                               'comments_url': _hn_comments_url(r['raw_content']),
+                              'summary': _hn_summary(r['raw_content']),
                               'ai_score': r['criteria_score']})
     hn_scored.sort(key=lambda x: -x['points'])
     hn_top = hn_scored[:20]
 
-    # ── 3. KOL individual posts (tier1 first, by recency) ────────────────
+    # ── 3. KOL individual posts (grouped by person, weight-sorted) ────────
     kol_rows = conn.execute("""
-        SELECT feed_name, article_title, article_link, published_date
+        SELECT feed_name, article_title, article_link, published_date, raw_content
         FROM articles
         WHERE feed_name LIKE 'jd-twitter%'
           AND published_date >= date('now', '-14 days')
@@ -3570,7 +3621,6 @@ def jd_buzz():
     """).fetchall()
     conn.close()
 
-    # Group by person
     kol_posts = {}
     for r in kol_rows:
         fn = r['feed_name']
@@ -3578,28 +3628,71 @@ def jd_buzz():
             continue
         if fn not in kol_posts:
             kol_posts[fn] = []
-        if len(kol_posts[fn]) < 4:
+        if len(kol_posts[fn]) < 5:
             kol_posts[fn].append(dict(r))
 
-    # Sort KOLs by endorser weight DESC
     kol_order = sorted(kol_posts.keys(),
                        key=lambda fn: -X_ENDORSER_WEIGHTS.get(
-                           TWITTER_PERSON_MAP[fn][0].split()[0].replace('@','').lower(), 0))
+                           fn.replace('jd-twitter-', ''), 0))
 
     # ── Build HTML ────────────────────────────────────────────────────────
-    def _kol_post_html(p, fn):
+
+    # KOL推荐阅读 cards
+    kol_links_html = ''
+    for item in kol_links[:15]:
+        handle = item['handle']
+        fn = f'jd-twitter-{handle}'
+        name, emoji, role = TWITTER_PERSON_MAP.get(fn, (f'@{handle}', '👤', ''))
+        weight = item['weight']
+        w_color = '#b45309' if weight >= 0.25 else '#1d4ed8' if weight >= 0.18 else '#6b7280'
+        summary = item['summary']
+        summary_s = summary[:280] + '…' if len(summary) > 280 else summary
+        pub = _parse_pub_date(item['date']).strftime('%-m/%-d')
+        domain = item['domain']
+        url = item['url']
+        kol_links_html += (
+            f'<div style="background:white;border:1px solid #e5e7eb;border-left:4px solid {w_color};'
+            f'border-radius:8px;padding:12px 14px;margin-bottom:10px">'
+            # KOL byline
+            f'<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
+            f'<span style="font-size:15px">{emoji}</span>'
+            f'<span style="font-size:12px;font-weight:700;color:#111827">{name}</span>'
+            f'<span style="font-size:10px;color:{w_color};font-weight:600">×{weight:.2f}</span>'
+            f'<span style="font-size:10px;color:#9ca3af;margin-left:auto">{pub}</span>'
+            f'</div>'
+            # Their commentary = summary
+            f'<div style="font-size:12px;color:#374151;line-height:1.7;margin-bottom:10px;'
+            f'background:#f9fafb;border-radius:6px;padding:8px 10px">{summary_s}</div>'
+            # Link
+            f'<a href="{url}" target="_blank" style="font-size:11px;color:#2563eb;'
+            f'text-decoration:none;display:flex;align-items:center;gap:4px">'
+            f'<span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;'
+            f'padding:2px 6px;font-size:10px;font-weight:600;color:#1d4ed8">{domain}</span>'
+            f'<span style="color:#9ca3af">↗ 阅读原文</span></a>'
+            f'</div>'
+        )
+    if not kol_links_html:
+        kol_links_html = '<div style="color:#9ca3af;font-size:12px;padding:16px">暂无KOL外链推荐数据</div>'
+
+    # KOL动态 cards (grouped by person)
+    def _kol_post_html(p):
         raw = p['article_title'] or ''
         is_rt = raw.startswith('RT by @') or raw.startswith('R to @')
-        text = raw[raw.find(': ')+2:] if ': ' in raw[:30] else raw
-        text_s = text[:160] + '…' if len(text) > 160 else text
+        text = raw[raw.find(': ')+2:] if (is_rt and ': ' in raw[:40]) else raw
+        # Also use raw_content for fuller text
+        full = _tweet_text(p.get('raw_content', '') or '')
+        display = full if len(full) > len(text) else text
+        display_s = display[:200] + '…' if len(display) > 200 else display
         pub = _parse_pub_date(p['published_date']).strftime('%-m/%-d')
         rt_tag = ('<span style="font-size:9px;background:#f3f4f6;color:#9ca3af;'
-                  'border-radius:3px;padding:0 4px;margin-right:3px">RT</span>') if is_rt else ''
-        return (f'<div style="padding:7px 0;border-top:1px solid #f3f4f6;font-size:11px;'
-                f'color:#374151;line-height:1.5">{rt_tag}'
+                  'border-radius:3px;padding:0 4px;margin-right:4px">RT</span>') if is_rt else ''
+        return (f'<div style="padding:8px 0;border-top:1px solid #f3f4f6">'
+                f'<div style="font-size:11px;color:#374151;line-height:1.6;margin-bottom:3px">'
+                f'{rt_tag}{display_s}</div>'
                 f'<a href="{p["article_link"]}" target="_blank" '
-                f'style="color:#374151;text-decoration:none">{text_s}</a>'
-                f'<span style="font-size:9px;color:#d1d5db;margin-left:6px">{pub}</span></div>')
+                f'style="font-size:10px;color:#9ca3af;text-decoration:none">原文 ↗</a>'
+                f'<span style="font-size:9px;color:#d1d5db;margin-left:8px">{pub}</span>'
+                f'</div>')
 
     kol_cards_html = ''
     for fn in kol_order:
@@ -3607,69 +3700,36 @@ def jd_buzz():
             continue
         name, emoji, role = TWITTER_PERSON_MAP[fn]
         handle = fn.replace('jd-twitter-', '')
-        weight = X_ENDORSER_WEIGHTS.get(handle, X_ENDORSER_WEIGHTS.get(handle.lower(), 0))
+        weight = X_ENDORSER_WEIGHTS.get(handle, 0)
         w_color = '#b45309' if weight >= 0.25 else '#1d4ed8' if weight >= 0.18 else '#6b7280'
-        posts_html = ''.join(_kol_post_html(p, fn) for p in kol_posts[fn])
+        posts_html = ''.join(_kol_post_html(p) for p in kol_posts[fn])
         kol_cards_html += (
             f'<div style="background:white;border:1px solid #e5e7eb;border-radius:8px;'
             f'padding:12px 14px;margin-bottom:10px">'
-            f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
+            f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;'
+            f'padding-bottom:6px;border-bottom:1px solid #f3f4f6">'
             f'<span style="font-size:18px">{emoji}</span>'
             f'<div style="flex:1">'
-            f'<div style="font-size:13px;font-weight:700;color:#111827">{name}</div>'
+            f'<div style="font-size:12px;font-weight:700;color:#111827">{name}</div>'
             f'<div style="font-size:10px;color:#9ca3af">{role}'
-            f' · <span style="color:{w_color};font-weight:600">信号权重×{weight:.2f}</span></div>'
+            f' · <span style="color:{w_color};font-weight:600">权重×{weight:.2f}</span></div>'
             f'</div></div>'
             f'{posts_html}</div>'
         )
 
-    # Multi-KOL convergence cards
-    convergence_html = ''
-    for item in convergence:
-        url = item['url']
-        weight = item['weight']
-        endorsers = item['endorsers']
-        # Try to make a readable title from the URL domain
-        from urllib.parse import urlparse as _up
-        try:
-            domain = _up(url).netloc.replace('www.', '')
-        except Exception:
-            domain = url[:40]
-        endorser_chips = ' '.join(
-            f'<span style="font-size:10px;background:#eff6ff;color:#1d4ed8;'
-            f'border:1px solid #bfdbfe;border-radius:4px;padding:1px 6px;font-weight:600">'
-            f'@{h}</span>'
-            for h, _ in endorsers
-        )
-        w_bar_pct = min(100, int(weight / 0.6 * 100))
-        convergence_html += (
-            f'<div style="background:white;border:1px solid #e5e7eb;border-left:4px solid #7c3aed;'
-            f'border-radius:8px;padding:12px 14px;margin-bottom:8px">'
-            f'<div style="display:flex;align-items:flex-start;gap:10px;justify-content:space-between">'
-            f'<a href="{url}" target="_blank" style="font-size:12px;font-weight:600;color:#111827;'
-            f'text-decoration:none;line-height:1.5;flex:1">{domain}</a>'
-            f'<div style="flex-shrink:0;text-align:right">'
-            f'<div style="font-size:12px;font-weight:700;color:#7c3aed">×{weight:.2f}</div>'
-            f'<div style="font-size:9px;color:#9ca3af">综合权重</div>'
-            f'<div style="height:4px;width:60px;background:#f3f4f6;border-radius:2px;margin-top:3px">'
-            f'<div style="height:100%;width:{w_bar_pct}%;background:#7c3aed;border-radius:2px"></div></div>'
-            f'</div></div>'
-            f'<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">{endorser_chips}</div>'
-            f'</div>'
-        )
-
-    if not convergence_html:
-        convergence_html = '<div style="color:#9ca3af;font-size:12px;padding:16px">近21天无多KOL共鸣数据</div>'
-
     # HN cards
     hn_html = ''
-    for i, item in enumerate(hn_top):
+    for item in hn_top:
         pts = item['points']
         cmts = item['comments']
         pub = _parse_pub_date(item['pub']).strftime('%-m/%-d')
         heat = min(100, pts // 3)
         heat_color = '#dc2626' if pts >= 200 else '#d97706' if pts >= 80 else '#6b7280'
         cmt_url = item['comments_url'] or item['link']
+        summary = item['summary']
+        summary_html = (f'<div style="font-size:11px;color:#6b7280;line-height:1.6;margin-top:4px;'
+                        f'background:#f9fafb;border-radius:4px;padding:6px 8px">'
+                        f'{summary[:240]}{"…" if len(summary)>240 else ""}</div>') if summary else ''
         hn_html += (
             f'<div style="padding:10px 0;border-top:1px solid #f3f4f6;'
             f'display:flex;gap:10px;align-items:flex-start">'
@@ -3682,7 +3742,8 @@ def jd_buzz():
             f'<div style="flex:1;min-width:0">'
             f'<a href="{item["link"]}" target="_blank" style="font-size:12px;font-weight:600;'
             f'color:#111827;text-decoration:none;line-height:1.5;display:block">{item["title"]}</a>'
-            f'<div style="font-size:10px;color:#9ca3af;margin-top:3px">'
+            f'{summary_html}'
+            f'<div style="font-size:10px;color:#9ca3af;margin-top:4px">'
             f'{pub} · <a href="{cmt_url}" target="_blank" style="color:#9ca3af;text-decoration:none">'
             f'💬 {cmts}条评论</a></div>'
             f'</div></div>'
@@ -3720,23 +3781,25 @@ def jd_buzz():
 {_jd_nav("buzz")}
 <div class="wrap">
   <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px 16px;
-              margin-bottom:20px;font-size:12px;color:#92400e;line-height:1.7">
+              margin-bottom:24px;font-size:12px;color:#92400e;line-height:1.7">
     <strong>📌 排名逻辑</strong> — 本页内容完全基于人类行为信号，不依赖AI评分。
-    HN热帖按真实点赞数(Points)降序；KOL共鸣按顶级意见领袖的转发/引用次数及权重聚合；KOL动态按发布者影响力权重排序。
+    HN热帖按真实点赞数(Points)降序 · KOL推荐阅读按发布者影响力权重排序，附其原话作为摘要 · KOL近期动态按权重+时效排序。
   </div>
 
-  <!-- ── 多KOL共鸣 ── -->
+  <!-- ── KOL推荐阅读 ── -->
   <div style="margin-bottom:32px">
-    <div style="font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:4px">🔗 多KOL共鸣</div>
-    <div style="font-size:11px;color:#9ca3af;margin-bottom:12px">被多位顶级KOL引用的内容 · 近21天 · 按综合权重排序</div>
-    {convergence_html}
+    <div style="font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:4px">🔗 KOL推荐阅读</div>
+    <div style="font-size:11px;color:#9ca3af;margin-bottom:12px">
+      顶级意见领袖主动分享的外链 · 其原话即摘要 · 按影响力权重排序
+    </div>
+    {kol_links_html}
   </div>
 
   <div class="two-col">
     <!-- ── HN热帖 ── -->
     <div>
-      <div style="font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:4px">🔗 Hacker News热帖</div>
-      <div style="font-size:11px;color:#9ca3af;margin-bottom:12px">按点赞数(Points)降序 · 近30天</div>
+      <div style="font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:4px">📊 Hacker News热帖</div>
+      <div style="font-size:11px;color:#9ca3af;margin-bottom:12px">按点赞数(Points)降序 · 近30天 · 含正文摘要</div>
       <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px">
         {hn_html}
       </div>
@@ -3745,7 +3808,7 @@ def jd_buzz():
     <!-- ── KOL近期动态 ── -->
     <div>
       <div style="font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:4px">💬 KOL近期动态</div>
-      <div style="font-size:11px;color:#9ca3af;margin-bottom:12px">按影响力权重排序 · 近14天</div>
+      <div style="font-size:11px;color:#9ca3af;margin-bottom:12px">按影响力权重排序 · 近14天 · 含完整推文</div>
       {kol_cards_html or '<div style="color:#9ca3af;font-size:12px;padding:16px">无KOL动态</div>'}
     </div>
   </div>
