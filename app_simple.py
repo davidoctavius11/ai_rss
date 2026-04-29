@@ -3418,8 +3418,24 @@ def jd_step2():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  竞品动向 — Competitor & Industry Intelligence (Retail Value Chain)
+#  竞品动向 — Retail Value Chain Intelligence (刘强东10节甘蔗)
 # ═══════════════════════════════════════════════════════════════════════════
+
+# Import the 10-segment definition from retail_convergence.py at runtime
+def _load_ganmie():
+    try:
+        import importlib.util, os as _os
+        spec = importlib.util.spec_from_file_location(
+            'retail_convergence',
+            _os.path.join(_os.path.dirname(__file__), 'retail_convergence.py')
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.GANMIE_SEGMENTS
+    except Exception:
+        return []
+
+GANMIE_SEGMENTS_RT = _load_ganmie()  # list of (key, label, emoji, desc, feeds, kw)
 
 # Feeds that directly cover the retail value chain or competitor moves
 RETAIL_CHAIN_FEEDS = {
@@ -3482,8 +3498,13 @@ RETAIL_SECTORS = [
 ]
 
 
-def render_jd_retail(sector_articles, total_fetched, total_placed, days=30):
-    """Render the competitor intelligence page."""
+def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60):
+    """Render the retail competitor page using 10节甘蔗 segments + convergence clusters."""
+
+    GANMIE_COLORS = [
+        '#6366f1','#7c3aed','#2563eb','#0891b2',
+        '#059669','#d97706','#dc2626','#be185d','#0f766e','#1d4ed8',
+    ]
 
     def score_color(s):
         if s is None: return '#9ca3af'
@@ -3501,94 +3522,136 @@ def render_jd_retail(sector_articles, total_fetched, total_placed, days=30):
                 f'<div style="height:100%;width:{pct}%;background:{color};border-radius:2px"></div></div>'
                 f'</div>')
 
-    def standpoint_pill(feed_name):
-        sp = STANDPOINT_MAP.get(feed_name, '')
+    def sp_pill(sp):
         colors = {
-            '关键玩家': ('#f5f3ff', '#7c3aed', '#ddd6fe'),
-            '资本动向':  ('#f0fdf4', '#059669', '#bbf7d0'),
-            '顶尖研究者':('#fff7ed', '#d97706', '#fed7aa'),
-            '行业媒体':  ('#f0f9ff', '#0891b2', '#bae6fd'),
-            '科技媒体':  ('#eff6ff', '#2563eb', '#bfdbfe'),
-            '技术社区':  ('#f5f3ff', '#6366f1', '#ddd6fe'),
-            '政策与专利':('#fef2f2', '#dc2626', '#fecaca'),
-            '内部情报':  ('#fdf2f8', '#be185d', '#fbcfe8'),
+            '关键玩家': ('#f5f3ff','#7c3aed','#ddd6fe'),
+            '资本动向':  ('#f0fdf4','#059669','#bbf7d0'),
+            '顶尖研究者':('#fff7ed','#d97706','#fed7aa'),
+            '行业媒体':  ('#f0f9ff','#0891b2','#bae6fd'),
+            '科技媒体':  ('#eff6ff','#2563eb','#bfdbfe'),
+            '技术社区':  ('#f5f3ff','#6366f1','#ddd6fe'),
+            '政策与专利':('#fef2f2','#dc2626','#fecaca'),
         }
         if not sp: return ''
-        bg, fg, bd = colors.get(sp, ('#f3f4f6', '#6b7280', '#e5e7eb'))
+        bg, fg, bd = colors.get(sp, ('#f3f4f6','#6b7280','#e5e7eb'))
         return (f'<span style="font-size:9px;background:{bg};color:{fg};border:1px solid {bd};'
-                f'padding:1px 6px;border-radius:5px;font-weight:500;white-space:nowrap">{sp}</span>')
+                f'padding:1px 6px;border-radius:5px;font-weight:500">{sp}</span>')
 
-    def article_card(row, sector_color):
-        score = row['criteria_score'] or 0
-        title = row['article_title'] or ''
-        src   = JD_SOURCE_MAP.get(row['feed_name'], {}).get('label', row['feed_name'])
-        pub   = _parse_pub_date(row['published_date']).strftime('%m-%d')
-        reason = row['criteria_reason'] or ''
-        action_note = ''
-        try:
-            bd = json.loads(row['criteria'] or '{}')
-            action_note = bd.get('action_note', '')
-        except Exception:
-            pass
-        sp_pill = standpoint_pill(row['feed_name'])
-        return f'''<div style="border:1px solid #e5e7eb;border-left:3px solid {sector_color};
-                       border-radius:7px;padding:13px 16px;margin-bottom:10px;background:white;
-                       box-shadow:0 1px 2px rgba(0,0,0,.04)">
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
-    <div style="flex:1;min-width:0">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
-        <span style="font-size:10px;color:#9ca3af">{src} · {pub}</span>
-        {sp_pill}
+    def cluster_card(cl, seg_color):
+        score   = cl['convergence_score'] or 0
+        theme   = cl['theme_label'] or ''
+        why     = cl['why_convergent'] or ''
+        synth   = cl['synthesis_text'] or ''
+        sq      = cl['strategic_question'] or ''
+        action  = cl['recommended_action'] or ''
+        feeds   = json.loads(cl['article_feed_names'] or '[]')
+        titles  = json.loads(cl['article_titles'] or '[]')
+        links   = json.loads(cl['article_links'] or '[]')
+        scores  = json.loads(cl['article_scores'] or '[]')
+        sps     = json.loads(cl['standpoints'] or '[]')
+
+        sources_html = ''
+        for i, (f, t, lk, sc) in enumerate(zip(feeds, titles, links, scores)):
+            lbl = JD_SOURCE_MAP.get(f, {}).get('label', f)
+            sp  = STANDPOINT_MAP.get(f, '')
+            sources_html += (
+                f'<div style="display:flex;align-items:flex-start;gap:8px;'
+                f'padding:6px 0;border-top:1px solid #f3f4f6">'
+                f'<span style="font-size:10px;font-weight:700;color:{score_color(sc)};'
+                f'flex-shrink:0;min-width:26px">{int(sc)}</span>'
+                f'<div style="flex:1;min-width:0">'
+                f'<a href="{lk}" target="_blank" style="font-size:11px;font-weight:600;'
+                f'color:#111827;text-decoration:none;line-height:1.4;display:block">{t}</a>'
+                f'<span style="font-size:9px;color:#9ca3af">{lbl}</span> '
+                f'{sp_pill(sp)}'
+                f'</div></div>'
+            )
+
+        sps_html = ' '.join(sp_pill(s) for s in sps if s)
+
+        return f'''<div style="border:1px solid #e5e7eb;border-left:4px solid {seg_color};
+                       border-radius:8px;margin-bottom:14px;background:white;overflow:hidden">
+  <div style="padding:14px 16px;background:{seg_color}08">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+      <div style="font-size:14px;font-weight:700;color:#1a1a2e">{theme}</div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        {sps_html}
+        <span style="font-size:12px;font-weight:700;color:{score_color(score)}">{score}</span>
       </div>
-      <a href="{row['article_link']}" target="_blank"
-         style="font-size:13px;font-weight:600;color:#111827;text-decoration:none;line-height:1.5;display:block">
-        {title}
-      </a>
-      {f'<div style="margin-top:8px;padding:7px 10px;background:#fffbeb;border-left:2px solid #f59e0b;border-radius:0 5px 5px 0;font-size:11px;color:#92400e;line-height:1.55">📋 {action_note}</div>' if action_note else ''}
-      {f'<div style="margin-top:6px;font-size:11px;color:#6b7280;line-height:1.5">{reason}</div>' if reason and not action_note else ''}
     </div>
-    <div style="flex-shrink:0">{score_bar_sm(score)}</div>
+    <div style="font-size:11px;color:#6b7280;line-height:1.6">{why}</div>
   </div>
+  <div style="padding:12px 16px">
+    {sources_html}
+  </div>
+  {f'<div style="padding:10px 16px;background:#fffbeb;border-top:1px solid #fde68a"><div style="font-size:11px;color:#92400e;line-height:1.6"><strong>🔍 {sq}</strong></div><div style="font-size:11px;color:#78350f;margin-top:4px">📋 {action}</div></div>' if sq or action else ''}
 </div>'''
 
-    # Build sector HTML blocks
-    sectors_html = ''
-    for sec_name, icon, color, sub, _ in RETAIL_SECTORS:
-        arts = sector_articles.get(sec_name, [])
-        count = len(arts)
-        if not arts:
-            sector_body = '<div style="padding:24px;text-align:center;color:#d1d5db;font-size:12px">暂无符合条件的文章 — 来源覆盖扩充后将自动填充</div>'
+    # ── Build segment blocks ───────────────────────────────────────────────
+    segments_html = ''
+    for ci, (seg_key, seg_label, seg_emoji, seg_desc, _, __) in enumerate(GANMIE_SEGMENTS_RT):
+        color    = GANMIE_COLORS[ci % len(GANMIE_COLORS)]
+        clusters = ganmie_clusters.get(seg_key, [])
+        arts     = ganmie_articles.get(seg_key, [])
+        n_cl     = len(clusters)
+        n_art    = len(arts)
+
+        if clusters:
+            body = ''.join(cluster_card(cl, color) for cl in clusters)
+        elif arts:
+            # Fallback: show top individual articles if no clusters yet
+            def _art_card(row):
+                src = JD_SOURCE_MAP.get(row['feed_name'], {}).get('label', row['feed_name'])
+                pub = _parse_pub_date(row['published_date']).strftime('%m-%d')
+                sc  = row['criteria_score'] or 0
+                return (f'<div style="display:flex;gap:10px;padding:8px 0;border-top:1px solid #f3f4f6;align-items:flex-start">'
+                        f'<span style="font-size:11px;font-weight:700;color:{score_color(sc)};flex-shrink:0;min-width:26px">{int(sc)}</span>'
+                        f'<div><a href="{row["article_link"]}" target="_blank" style="font-size:12px;font-weight:600;color:#111827;text-decoration:none">{row["article_title"]}</a>'
+                        f'<div style="font-size:10px;color:#9ca3af;margin-top:2px">{src} · {pub}</div></div></div>')
+            body = (f'<div style="padding:10px 16px;background:#f9fafb;border-radius:6px;font-size:11px;color:#9ca3af;margin-bottom:8px">'
+                    f'收敛分析待运行 — 显示最高分文章</div>')
+            body += ''.join(_art_card(r) for r in arts[:6])
         else:
-            sector_body = ''.join(article_card(r, color) for r in arts[:8])
-            if count > 8:
-                sector_body += (f'<div style="text-align:center;padding:8px;font-size:11px;color:#9ca3af">'
-                                f'还有 {count-8} 篇 · 可调整筛选条件查看更多</div>')
+            body = '<div style="padding:20px;text-align:center;color:#d1d5db;font-size:12px">暂无数据 — 运行 retail_convergence.py 后填充</div>'
 
-        sectors_html += f'''
-<div style="margin-bottom:24px">
+        badge = (f'<span style="background:{color}15;color:{color};border:1px solid {color}30;'
+                 f'font-size:10px;font-weight:600;padding:2px 8px;border-radius:8px">'
+                 f'{n_cl} 个聚类</span>' if n_cl else
+                 f'<span style="background:#f3f4f6;color:#9ca3af;font-size:10px;padding:2px 8px;border-radius:8px">'
+                 f'{n_art} 篇</span>')
+
+        segments_html += f'''
+<div style="margin-bottom:28px" id="seg-{seg_key}">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;
-              padding-bottom:10px;border-bottom:2px solid {color}20">
-    <span style="font-size:20px">{icon}</span>
-    <div>
-      <div style="font-size:15px;font-weight:700;color:#1a1a2e">{sec_name}</div>
-      <div style="font-size:11px;color:#9ca3af;margin-top:1px">{sub}</div>
+              padding-bottom:10px;border-bottom:2px solid {color}30">
+    <span style="font-size:22px">{seg_emoji}</span>
+    <div style="flex:1">
+      <div style="font-size:15px;font-weight:700;color:#1a1a2e">第{ci+1}节 · {seg_label}</div>
+      <div style="font-size:11px;color:#9ca3af;margin-top:1px">{seg_desc}</div>
     </div>
-    <span style="margin-left:auto;background:{color}15;color:{color};border:1px solid {color}30;
-                 font-size:11px;font-weight:600;padding:2px 10px;border-radius:10px">{count} 篇</span>
+    {badge}
   </div>
-  {sector_body}
+  <div style="padding:0 4px">{body}</div>
 </div>'''
 
-    # Summary stats
-    sector_counts = {s[0]: len(sector_articles.get(s[0], [])) for s in RETAIL_SECTORS}
-    total_shown   = sum(sector_counts.values())
+    # Overview pills
+    overview = ''
+    for ci, (sk, sl, se, _, __, ___) in enumerate(GANMIE_SEGMENTS_RT):
+        color = GANMIE_COLORS[ci % len(GANMIE_COLORS)]
+        n = len(ganmie_clusters.get(sk, []))
+        overview += (f'<a href="#seg-{sk}" style="text-decoration:none;display:inline-flex;'
+                     f'align-items:center;gap:5px;background:white;border:1px solid #e5e7eb;'
+                     f'border-left:3px solid {color};border-radius:6px;padding:6px 10px;'
+                     f'font-size:11px;color:#1a1a2e;font-weight:500">'
+                     f'{se} {sl}'
+                     f'<span style="color:{color};font-weight:700">{n}</span></a>')
 
     return f'''<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>JD竞品动向</title>
+<title>JD竞品动向 · 10节甘蔗</title>
 <style>
   * {{ box-sizing:border-box }}
   body {{ margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
@@ -3600,15 +3663,13 @@ def render_jd_retail(sector_articles, total_fetched, total_placed, days=30):
   .nav a {{ color:rgba(255,255,255,.65);text-decoration:none;padding:10px 14px;
             font-size:13px;border-bottom:2px solid transparent;display:inline-block }}
   .nav a:hover,.nav a.active {{ color:white;border-bottom-color:#e74c3c }}
-  .wrap {{ max-width:960px;margin:24px auto;padding:0 20px }}
-  .notice {{ background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;
-             padding:14px 18px;margin-bottom:20px;font-size:13px;color:#1e40af;line-height:1.7 }}
+  .wrap {{ max-width:900px;margin:24px auto;padding:0 20px }}
 </style>
 </head>
 <body>
 <div class="header">
   <h1>🏪 竞品与行业动向</h1>
-  <div class="meta">零售产业链全链路 · 近{days}天 · 评分≥55分 · 共 {total_placed} 篇有效情报 / {total_fetched} 篇入库</div>
+  <div class="meta">刘强东10节甘蔗 · 零售产业链全链路收敛分析 · 近{days}天 · 共 {total_clusters} 个收敛聚类</div>
 </div>
 <div class="nav">
   <a href="/jd">📋 今日简报</a>
@@ -3619,20 +3680,15 @@ def render_jd_retail(sector_articles, total_fetched, total_placed, days=30):
   <a href="/jd/feed.xml" style="margin-left:auto;color:rgba(255,255,255,.65);text-decoration:none;padding:10px 14px;font-size:13px">feed ↗</a>
 </div>
 <div class="wrap">
-  <div class="notice">
-    <strong>📌 首发版本说明</strong> — 聚焦零售产业链竞品的产品与技术创新动态，覆盖从上游设计/制造 →
-    仓储/供应链 → 物流/配送 → 营销/客服全链路。文章来源优先纳入竞品官方技术博客、行业垂直媒体、
-    供应链专业媒体，评分规则与总裁简报保持一致（相关性 40 · 新颖性 30 · 来源层级 20 · 时效性 10）。
+  <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;
+              margin-bottom:16px;font-size:12px;color:#92400e;line-height:1.7">
+    <strong>📌 刘强东10节甘蔗理论</strong> — 零售价值链的10个利润节点：
+    设计→制造→定价→营销→交易→仓储→配送→售后服务→金融服务→数据/技术。
+    每节显示该环节的跨来源收敛信号（多个独立来源印证同一趋势）。
+    更新频率：每次运行 <code>retail_convergence.py</code> 后刷新。
   </div>
-  <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
-    {''.join(f'''<div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;
-                              display:flex;align-items:center;gap:8px;min-width:130px">
-      <span style="font-size:16px">{s[1]}</span>
-      <div><div style="font-size:11px;font-weight:700;color:#1a1a2e">{s[0]}</div>
-           <div style="font-size:10px;color:#9ca3af">{sector_counts[s[0]]} 篇</div></div>
-    </div>''' for s in RETAIL_SECTORS)}
-  </div>
-  {sectors_html}
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px">{overview}</div>
+  {segments_html}
 </div>
 </body>
 </html>'''
@@ -3640,54 +3696,44 @@ def render_jd_retail(sector_articles, total_fetched, total_placed, days=30):
 
 @app.route('/jd/retail')
 def jd_retail():
-    days = int(request.args.get('days', 30))
-    min_score = int(request.args.get('min_score', 55))
+    days = int(request.args.get('days', 60))
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(f"""
-        SELECT id, feed_name, article_title, article_link,
-               published_date, criteria_score, criteria_reason, criteria, signal_tier
-        FROM articles
-        WHERE feed_name LIKE 'jd-%'
-          AND criteria_score >= ?
-          AND published_date >= date('now', '-{days} days')
-        ORDER BY criteria_score DESC
-        LIMIT 800
-    """, (min_score,)).fetchall()
+
+    # Load clusters grouped by scope (= ganmie segment key)
+    cluster_rows = conn.execute("""
+        SELECT * FROM intelligence_clusters
+        WHERE scope != '' AND scope IS NOT NULL
+          AND created_at >= datetime('now', '-7 days')
+        ORDER BY convergence_score DESC
+    """).fetchall()
+
+    ganmie_clusters = {}
+    for cl in cluster_rows:
+        sk = cl['scope']
+        ganmie_clusters.setdefault(sk, []).append(cl)
+
+    # For segments with no clusters, load top individual articles as fallback
+    ganmie_articles = {}
+    if GANMIE_SEGMENTS_RT:
+        for seg_key, _, _, _, seg_feeds, _ in GANMIE_SEGMENTS_RT:
+            if seg_key not in ganmie_clusters:
+                placeholders = ','.join('?' * len(seg_feeds))
+                arts = conn.execute(
+                    "SELECT id, feed_name, article_title, article_link, "
+                    "published_date, criteria_score, criteria_reason, criteria "
+                    "FROM articles WHERE feed_name IN (" + placeholders + ") "
+                    "AND criteria_score >= 50 "
+                    "AND published_date >= date('now', '-" + str(days) + " days') "
+                    "ORDER BY criteria_score DESC LIMIT 6",
+                    list(seg_feeds)
+                ).fetchall()
+                ganmie_articles[seg_key] = arts
+
     conn.close()
-
-    # ── Categorise articles by sector ──────────────────────────────────────
-    sector_articles = {s[0]: [] for s in RETAIL_SECTORS}
-    for row in rows:
-        feed = row['feed_name']
-        # Determine the domain label for this article
-        domain = FEED_DOMAIN_MAP.get(feed, '')
-        if not domain:
-            try:
-                bd = json.loads(row['criteria'] or '{}')
-                teams = bd.get('primary_teams') or bd.get('relevant_teams') or []
-                domain = TEAM_TO_DOMAIN.get(teams[0], '') if teams else ''
-            except Exception:
-                pass
-
-        # Only include if feed is in retail scope OR domain is in retail chain
-        if feed not in RETAIL_CHAIN_FEEDS and domain not in RETAIL_CHAIN_DOMAINS:
-            continue
-
-        # Map to a sector
-        placed = False
-        for sec_name, icon, color, sub, sec_domains in RETAIL_SECTORS:
-            if domain in sec_domains:
-                sector_articles[sec_name].append(row)
-                placed = True
-                break
-        # Fallback: put unmatched-domain retail-chain articles in 零售产品与技术
-        if not placed and feed in RETAIL_CHAIN_FEEDS:
-            sector_articles['零售产品与技术'].append(row)
-
-    total_placed = sum(len(v) for v in sector_articles.values())
-    return render_jd_retail(sector_articles, len(rows), total_placed, days)
+    total_clusters = sum(len(v) for v in ganmie_clusters.values())
+    return render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days)
 
 
 if __name__ == '__main__':
