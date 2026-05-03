@@ -110,7 +110,7 @@ STANDPOINT_MAP = {
     ]},
     # 中国媒体（scraper来源）
     **{k: '科技媒体' for k in [
-        'jd-jiqizhixin','jd-latepost','jd-geekpark','jd-yicai',
+        'jd-jiqizhixin','jd-latepost','jd-geekpark','jd-yicai','jd-ifanr','jd-ruanyifeng',
     ]},
     **{k: '政策与专利' for k in [
         'jd-miit','jd-cac',
@@ -947,19 +947,184 @@ def feed_xml_route():
 # ── JD Intelligence routes ────────────────────────────────────────────────────
 
 def _jd_nav(active: str) -> str:
-    """Return the shared 4-tab nav bar. active: 'retail'|'buzz'|'sources'|'all'"""
+    """Return the shared nav bar. active: 'retail'|'buzz'|'capital'|'sources'|'all'"""
     def _a(key, href, label):
         cls = ' class="active"' if key == active else ''
         return f'<a href="{href}"{cls}>{label}</a>'
     return (
         '<div class="nav">'
-        + _a('retail',  '/jd/retail',  '🏪 竞品动向')
-        + _a('buzz',    '/jd/buzz',    '🔥 社区热议')
-        + _a('sources', '/jd/sources', '📡 情报源')
-        + _a('all',     '/jd/all',     '🗃 全部归档')
+        + _a('retail',  '/jd/retail',   '🏭 产业共识')
+        + _a('buzz',    '/jd/buzz',     '🔥 社区热议')
+        + _a('capital', '/jd/capital',  '💰 资金流向')
+        + _a('sources', '/jd/sources',  '📡 情报源')
+        + _a('all',     '/jd/all',      '🗃 全部归档')
         + '<a href="/jd/feed.xml" style="margin-left:auto;color:rgba(255,255,255,.65);'
           'text-decoration:none;padding:10px 14px;font-size:13px">RSS ↗</a>'
         + '</div>'
+    )
+
+
+# ── Community/thread feed registry ──────────────────────────────────────────
+# Only include thread/discussion platforms here (not editorial media).
+# Format: feed_name → (display_label, accent_color, bg_color, border_color)
+_COMMUNITY_FEEDS = {
+    'jd-huggingface-blog': ('HuggingFace Blog', '#6b21a8', '#fdf4ff', '#e9d5ff'),
+    'jd-reddit-ml':        ('Reddit r/ML',       '#dc2626', '#fef2f2', '#fecaca'),
+    'jd-reddit-localllama':('Reddit r/LocalLLaMA','#ea580c','#fff7ed', '#fed7aa'),
+    'jd-reddit-artificial':('Reddit r/artificial','#b45309','#fffbeb', '#fde68a'),
+    'jd-producthunt-ai':   ('Product Hunt AI',   '#db2777', '#fdf2f8', '#fbcfe8'),
+    'jd-devto-ai':         ('dev.to · AI',       '#1d4ed8', '#eff6ff', '#bfdbfe'),
+    'jd-juejin-ai':        ('掘金 Juejin',        '#0891b2', '#ecfeff', '#a5f3fc'),
+    'jd-v2ex':             ('V2EX',              '#059669', '#ecfdf5', '#a7f3d0'),
+    'jd-sspai':            ('少数派 SSPAI',        '#7c3aed', '#f5f3ff', '#ddd6fe'),
+    'jd-linux-do':         ('Linux.do',          '#16a34a', '#f0fdf4', '#bbf7d0'),
+    'jd-lobsters-ai':      ('Lobste.rs · AI',    '#b45309', '#fffbeb', '#fde68a'),
+    'jd-hn-showhn':        ('Show HN',           '#d97706', '#fffbeb', '#fef3c7'),
+}
+
+# Chinese thread communities (subset of _COMMUNITY_FEEDS)
+CN_FEEDS = ['jd-juejin-ai', 'jd-v2ex', 'jd-sspai', 'jd-linux-do']
+
+# Feeds sorted by engagement metric (replies/upvotes) rather than AI score
+_ENGAGEMENT_SORT_FEEDS = {
+    'jd-v2ex', 'jd-lobsters-ai', 'jd-hn-showhn', 'jd-sspai', 'jd-huggingface-blog'
+}
+_ENGAGEMENT_SORTED_FEEDS = _ENGAGEMENT_SORT_FEEDS  # alias for display logic
+
+def _parse_reply_count(raw: str) -> int:
+    """Extract engagement count from raw_content for community feeds."""
+    import re as _re2
+    # HuggingFace upvotes: [👍42赞]
+    m = _re2.search(r'👍(\d+)赞', raw or '')
+    if m:
+        return int(m.group(1))
+    # V2EX replies
+    m = _re2.search(r'回复:(\d+)条', raw or '')
+    if m:
+        return int(m.group(1))
+    # Lobste.rs / HN votes+comments
+    m = _re2.search(r'💬(\d+)评论', raw or '')
+    if m:
+        return int(m.group(1))
+    # Reddit comments
+    m = _re2.search(r'comments=(\d+)', raw or '')
+    if m:
+        return int(m.group(1))
+    # Generic upvote pattern
+    m = _re2.search(r'⬆(\d+)', raw or '')
+    if m:
+        return int(m.group(1))
+    return 0
+
+def _clean_reason_for_display(reason: str, limit: int = 160) -> str:
+    """Strip scoring noise from criteria_reason for clean display."""
+    import re as _re3
+    if not reason:
+        return ''
+    # Remove score prefix like "85分：" or "评分85："
+    reason = _re3.sub(r'^[\d]+分[：:]?\s*', '', reason)
+    reason = _re3.sub(r'^评分[\d]+[：:]?\s*', '', reason)
+    reason = reason.strip()
+    return reason[:limit] + '…' if len(reason) > limit else reason
+
+# Low-signal markers used by _is_product_innovation()
+_LOW_SIGNAL_MARKERS = [
+    '纯学术', '无产品路径', '无落地', '无商业价值', '仅有愿景', '概念演示',
+    '纯PR稿', '广告', '软文', '主流媒体已广泛覆盖', '人人皆知',
+    '纯理论推导', '无实证', '数学推导', '消融实验',
+]
+
+def _is_product_innovation(reason: str, score) -> bool:
+    """Return True if article passes product innovation bar (not low-signal)."""
+    if not reason:
+        return True
+    if score is not None and float(score) < 40:
+        return False
+    low_count = sum(1 for s in _LOW_SIGNAL_MARKERS if s.lower() in reason.lower())
+    return low_count < 2
+
+def _community_feed_section(fn: str, items: list, label: str,
+                             accent: str, bg: str, border: str) -> str:
+    """Render one community feed card section."""
+    import re as _re4
+    if not items:
+        return ''
+
+    # Sort label
+    if fn == 'jd-huggingface-blog':
+        sort_label = '按 Upvotes 降序 · 近30天'
+    elif fn in _ENGAGEMENT_SORTED_FEEDS:
+        sort_label = '按讨论热度 · 近30天'
+    else:
+        sort_label = '按AI相关性 · 近30天'
+
+    cards = ''
+    for item in items[:15]:
+        title = item.get('article_title') or ''
+        link  = item.get('article_link') or '#'
+        pub   = item.get('published_date', '')[:10]
+        score = item.get('criteria_score')
+        raw   = item.get('raw_content', '') or ''
+
+        # Popularity badge
+        eng = _parse_reply_count(raw)
+        if eng > 0:
+            if fn == 'jd-huggingface-blog':
+                eng_icon, eng_label = '👍', f'{eng} upvotes'
+            elif fn == 'jd-v2ex':
+                eng_icon, eng_label = '💬', f'{eng} 回复'
+            elif fn in ('jd-lobsters-ai', 'jd-hn-showhn'):
+                eng_icon, eng_label = '⬆', f'{eng} 分'
+            elif fn == 'jd-sspai':
+                eng_icon, eng_label = '❤', f'{eng} 赞'
+            else:
+                eng_icon, eng_label = '💬', str(eng)
+            eng_s = (f'<span style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;'
+                     f'border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;'
+                     f'margin-left:6px">{eng_icon} {eng_label}</span>')
+        else:
+            eng_s = ''
+
+        # Score badge
+        score_s = ''
+        if score is not None:
+            sc = int(score)
+            sc_color = '#059669' if sc >= 70 else '#d97706' if sc >= 50 else '#6b7280'
+            score_s = (f'<span style="background:#f0fdf4;color:{sc_color};border:1px solid #bbf7d0;'
+                       f'border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600">'
+                       f'{sc}分</span>')
+
+        # Chinese summary from criteria_reason
+        reason = _clean_reason_for_display(item.get('criteria_reason') or '', limit=160)
+        reason_html = (
+            f'<div style="font-size:11px;color:#6b7280;line-height:1.6;margin-top:5px;'
+            f'padding:5px 8px;border-left:2px solid #e5e7eb;background:#f9fafb;">'
+            f'{reason}</div>'
+        ) if reason else ''
+
+        cards += (
+            f'<div style="padding:8px 0;border-top:1px solid #f3f4f6">'
+            f'<div style="display:flex;align-items:flex-start;gap:6px;flex-wrap:wrap">'
+            f'<a href="{link}" target="_blank" style="font-size:12px;font-weight:600;'
+            f'color:#111827;text-decoration:none;line-height:1.5;flex:1;min-width:0">'
+            f'{title}</a>'
+            f'<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">'
+            f'{score_s}{eng_s}</div>'
+            f'</div>'
+            f'{reason_html}'
+            f'<div style="font-size:10px;color:#9ca3af;margin-top:3px">{pub}</div>'
+            f'</div>'
+        )
+
+    return (
+        f'<div style="background:{bg};border:1px solid {border};border-radius:8px;'
+        f'padding:14px 16px;margin-bottom:16px">'
+        f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
+        f'<span style="font-size:13px;font-weight:700;color:{accent}">{label}</span>'
+        f'<span style="font-size:10px;color:#9ca3af">{sort_label}</span>'
+        f'</div>'
+        f'{cards}'
+        f'</div>'
     )
 
 
@@ -2558,7 +2723,7 @@ def jd_matrix_internal():
     return render_jd_matrix(cells_data, len(rows))
 
 
-# ── Temporary: Capital & Investor standpoint feed ─────────────────────────
+# ── Capital & Investor standpoint feed (kept for backward compat) ─────────
 CAPITAL_FEEDS = [
     'jd-a16z','jd-sequoia','jd-lightspeed','jd-ycombinator',
     'jd-elad-gil','jd-tomasz-tunguz','jd-benedict-evans',
@@ -2577,173 +2742,338 @@ CAPITAL_LABELS = {
     'jd-crunchbase-news': 'Crunchbase News',
 }
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  资金流向 — Capital Flow Intelligence
+# ═══════════════════════════════════════════════════════════════════════════
+
 @app.route('/jd/capital')
 def jd_capital():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    placeholders = ','.join('?' * len(CAPITAL_FEEDS))
-    c.execute(f'''
-        SELECT article_title, article_link, published_date, feed_name, criteria
-        FROM articles
-        WHERE feed_name IN ({placeholders})
-        ORDER BY
-            CASE WHEN criteria IS NOT NULL THEN 0 ELSE 1 END,
-            CAST(json_extract(criteria,'$.total') AS INTEGER) DESC,
-            published_date DESC
-    ''', CAPITAL_FEEDS)
-    rows = c.fetchall()
+    return render_jd_capital()
 
-    # counts
-    c.execute(f'SELECT COUNT(*) FROM articles WHERE feed_name IN ({placeholders}) AND criteria IS NULL', CAPITAL_FEEDS)
-    pending = c.fetchone()[0]
-    conn.close()
-
-    def score_color(s):
-        if s >= 70: return '#dc2626'
-        if s >= 55: return '#d97706'
-        return '#6b7280'
-
-    cards = []
-    for row in rows:
-        crit = json.loads(row['criteria']) if row['criteria'] else None
-        score = crit.get('total', 0) if crit else None
-        reason = crit.get('reason', '') if crit else ''
-        domain = crit.get('domain', '') if crit else ''
-        action = crit.get('action_note', '') if crit else ''
-
-        pub = _parse_pub_date(row['published_date'])
-        pub_str = pub.strftime('%-m月%-d日') if pub else ''
-
-        label = CAPITAL_LABELS.get(row['feed_name'], row['feed_name'])
-
-        score_badge = (
-            f'<span style="font-size:22px;font-weight:800;color:{score_color(score)};'
-            f'line-height:1;display:block">{score}</span>'
-            f'<span style="font-size:9px;color:#9ca3af">/ 100</span>'
-            if score is not None else
-            '<span style="font-size:10px;color:#d1d5db;display:block;padding-top:4px">评分中</span>'
-        )
-
-        action_block = (
-            f'<div style="margin-top:8px;padding:7px 10px;background:#f0fdf4;'
-            f'border-left:3px solid #16a34a;border-radius:0 4px 4px 0;'
-            f'font-size:10px;color:#166534;line-height:1.6">'
-            f'<b>建议行动：</b>{action}</div>'
-            if action and action != '暂不建议行动' else
-            (f'<div style="margin-top:8px;padding:5px 10px;background:#f9fafb;'
-             f'border-left:3px solid #d1d5db;border-radius:0 4px 4px 0;'
-             f'font-size:10px;color:#9ca3af">暂不建议行动，待后续有技术细节再跟进</div>'
-             if action == '暂不建议行动' else '')
-        )
-
-        # ── 3 tags: domain / plate / standpoint ──────────────────────────
-        def _cap_pill(text, bg, color, border):
-            return (f'<span style="font-size:10px;background:{bg};color:{color};'
-                    f'border:1px solid {border};padding:1px 7px;border-radius:6px;'
-                    f'margin-right:4px;font-weight:500;white-space:nowrap">{text}</span>')
-
-        cap_tags = []
-        d_label = FEED_DOMAIN_MAP.get(row['feed_name'], '')
-        if d_label:
-            cap_tags.append(_cap_pill(d_label, '#f3f4f6', '#374151', '#e5e7eb'))
-        plate_label = ''
-        if crit:
-            _pt = (crit.get('primary_teams') or crit.get('relevant_teams') or [])
-            if _pt:
-                plate_label = TEAM_TO_PLATE.get(_pt[0], '')
-        if plate_label:
-            p_color = next((c for pn, pt, c, *_ in PLATE_GROUPS if pn == plate_label), '#6b7280')
-            cap_tags.append(_cap_pill(plate_label, p_color + '12', p_color, p_color + '40'))
-        sp_label = STANDPOINT_MAP.get(row['feed_name'], '')
-        if sp_label:
-            cap_tags.append(_cap_pill(sp_label, '#f0f9ff', '#0369a1', '#bae6fd'))
-
-        tags_row = (
-            '<div style="margin-top:5px;display:flex;flex-wrap:wrap;align-items:center">'
-            + ''.join(cap_tags) + '</div>'
-        ) if cap_tags else ''
-
-        cards.append(f'''
-        <div style="display:flex;gap:16px;padding:18px 20px;border-bottom:1px solid #f3f4f6;
-                    background:{"#fff" if score and score>=65 else "#fafafa"}">
-          <div style="width:48px;flex-shrink:0;text-align:center;padding-top:2px">
-            {score_badge}
-          </div>
-          <div style="flex:1;min-width:0">
-            <div style="margin-bottom:5px">
-              <span style="font-size:10px;color:#9ca3af">{label}</span>
-              <span style="font-size:10px;color:#d1d5db"> · </span>
-              <span style="font-size:10px;color:#9ca3af">{pub_str}</span>
-            </div>
-            <a href="{row['article_link']}" target="_blank"
-               style="font-size:13px;font-weight:600;color:#111827;text-decoration:none;
-                      line-height:1.5;display:block;margin-bottom:6px">{row['article_title']}</a>
-            {tags_row}
-            { f'<div style="margin-top:6px;font-size:11px;color:#4b5563;line-height:1.7">{reason}</div>' if reason else '' }
-            {action_block}
-          </div>
-        </div>''')
-
-    scored_count = sum(1 for r in rows if r['criteria'])
-    high_count   = sum(1 for r in rows if r['criteria'] and json.loads(r['criteria']).get('total',0) >= 65)
-
-    refresh_meta = '<meta http-equiv="refresh" content="25">' if pending > 0 else ''
-
-    return f'''<!DOCTYPE html>
+def render_jd_capital():
+    """Render the 资金流向 (Capital Flows) intelligence page."""
+    html = f'''<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-{refresh_meta}
-<title>资本动向专栏 · JD情报</title>
+<title>JD资金流向 · 智能资本信号</title>
 <style>
   * {{ box-sizing:border-box }}
   body {{ margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
           background:#f3f4f6;color:#1a1a2e }}
   .header {{ background:linear-gradient(135deg,#1a1a2e,#16213e);color:white;padding:20px 32px }}
   .header h1 {{ margin:0 0 4px;font-size:20px;font-weight:700 }}
-  .meta {{ font-size:12px;opacity:.65 }}
-  .nav {{ background:#16213e;padding:0 32px;display:flex;align-items:center;gap:4px }}
-  .nav a {{ color:rgba(255,255,255,.55);text-decoration:none;padding:10px 14px;
-            font-size:13px;border-bottom:2px solid transparent }}
-  .nav a:hover {{ color:white;border-bottom-color:#e74c3c }}
-  .wrap {{ max-width:860px;margin:24px auto;padding:0 20px }}
-  .card-wrap {{ background:white;border-radius:8px;overflow:hidden;
-               border:1px solid #e5e7eb }}
+  .header .meta {{ font-size:12px;opacity:.65 }}
+  .nav {{ background:#16213e;padding:0 32px;display:flex;align-items:center }}
+  .nav a {{ color:rgba(255,255,255,.65);text-decoration:none;padding:10px 14px;
+            font-size:13px;border-bottom:2px solid transparent;display:inline-block }}
+  .nav a:hover,.nav a.active {{ color:white;border-bottom-color:#e74c3c }}
+  .wrap {{ max-width:1100px;margin:24px auto;padding:0 20px }}
+  .section {{ background:white;border:1px solid #e5e7eb;border-radius:8px;
+              padding:20px 24px;margin-bottom:24px }}
+  .section-title {{ font-size:16px;font-weight:700;color:#1a1a2e;margin-bottom:4px }}
+  .section-desc {{ font-size:12px;color:#6b7280;margin-bottom:16px }}
+  .signal-row {{ display:flex;align-items:flex-start;gap:12px;padding:10px 0;
+                 border-top:1px solid #f3f4f6 }}
+  .signal-icon {{ font-size:20px;flex-shrink:0;width:32px;text-align:center }}
+  .signal-body {{ flex:1;min-width:0 }}
+  .signal-name {{ font-size:13px;font-weight:600;color:#111827 }}
+  .signal-desc {{ font-size:11px;color:#6b7280;line-height:1.6;margin-top:2px }}
+  .tag {{ display:inline-block;font-size:10px;font-weight:600;border-radius:4px;
+          padding:2px 6px;margin-right:4px }}
+  .tag-live {{ background:#dcfce7;color:#166534 }}
+  .tag-paid {{ background:#fef3c7;color:#92400e }}
+  .tag-manual {{ background:#eff6ff;color:#1e40af }}
 </style>
 </head>
 <body>
 <div class="header">
-  <h1>💰 资本动向与投资人观点</h1>
-  <div class="meta">
-    {len(rows)} 篇文章 · {scored_count} 篇已评分 · {high_count} 篇进入简报候选（≥65分）
-    {"· <span style='color:#fbbf24'>⏳ " + str(pending) + " 篇评分中，页面每25秒自动刷新…</span>" if pending > 0 else "· ✅ 全部评分完成"}
-  </div>
+  <h1>💰 资金流向</h1>
+  <div class="meta">最早期市场信号 · 私募融资 · 机构仓位 · 智能资本观点</div>
 </div>
-{_jd_nav("")}
+{_jd_nav("capital")}
 <div class="wrap">
-  <div style="margin-bottom:14px;font-size:11px;color:#6b7280">
-    覆盖来源：{' · '.join(CAPITAL_LABELS.values())}
+
+  <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;
+              margin-bottom:24px;font-size:12px;color:#92400e;line-height:1.7">
+    <strong>📌 资金流向说明</strong> — 本页追踪「智能资本」的最早期动作：
+    Form D私募备案（融资发生后15天内强制披露）、13F机构仓位变化、S-1上市申请、
+    VC合伙人公开观点。这些信号比媒体报道早数周至数月。
+    <strong>注意</strong>：ETF资金流入属于滞后信号，不在本页追踪范围。
   </div>
 
-  <!-- Source stat bar -->
-  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
-    {"".join(
-        f'<span style="background:white;border:1px solid #e5e7eb;border-radius:6px;padding:6px 12px;font-size:11px">'
-        f'<b style="color:#111">{CAPITAL_LABELS.get(f,f)}</b> '
-        f'<span style="color:#9ca3af">{sum(1 for r in rows if r["feed_name"]==f)} 篇</span></span>'
-        for f in CAPITAL_FEEDS
-    )}
+  <!-- ── Section 1: 私募市场最早信号 ── -->
+  <div class="section">
+    <div class="section-title">📋 私募市场最早信号</div>
+    <div class="section-desc">Form D 备案 · S-1 上市申请 · 13D/G 大额持仓披露 · Crunchbase · YC批次</div>
+
+    <div class="signal-row">
+      <div class="signal-icon">🇺🇸</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-live">实时接入</span>
+          SEC EDGAR — Form D (私募融资备案)
+        </div>
+        <div class="signal-desc">
+          美国证券法要求：私募融资完成后<strong>15天内</strong>强制向SEC备案Form D。
+          这是最早的官方融资信号，比TechCrunch报道早数周。
+          涵盖：融资金额、投资者类型、公司注册地。<br>
+          <a href="https://efts.sec.gov/LATEST/search-index?q=%22artificial+intelligence%22&dateRange=custom&startdt={__import__('datetime').date.today().strftime('%Y-%m-%d')}&forms=D"
+             target="_blank" style="color:#2563eb">→ 今日AI相关Form D备案</a> ·
+          <a href="https://efts.sec.gov/LATEST/search-index?q=%22machine+learning%22&forms=D&dateRange=custom&startdt={(__import__('datetime').date.today() - __import__('datetime').timedelta(days=7)).strftime('%Y-%m-%d')}"
+             target="_blank" style="color:#2563eb">近7天ML相关</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="signal-row">
+      <div class="signal-icon">📈</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-live">实时接入</span>
+          SEC EDGAR — S-1 (IPO申请)
+        </div>
+        <div class="signal-desc">
+          公司IPO前的完整财务披露。S-1包含商业模式、竞争格局、风险因素，
+          是了解新兴科技公司最详尽的公开文件。<br>
+          <a href="https://efts.sec.gov/LATEST/search-index?q=%22artificial+intelligence%22&forms=S-1&dateRange=custom&startdt={(__import__('datetime').date.today() - __import__('datetime').timedelta(days=30)).strftime('%Y-%m-%d')}"
+             target="_blank" style="color:#2563eb">→ 近30天AI相关S-1</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="signal-row">
+      <div class="signal-icon">🎯</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-live">实时接入</span>
+          SEC EDGAR — 13D/G (大额持仓披露)
+        </div>
+        <div class="signal-desc">
+          持股超过5%时须在10天内披露。13D=积极投资者（有意图影响公司），
+          13G=被动持仓。追踪顶级机构对AI/科技公司的大额建仓动作。<br>
+          <a href="https://efts.sec.gov/LATEST/search-index?q=%22artificial+intelligence%22&forms=SC+13D,SC+13G"
+             target="_blank" style="color:#2563eb">→ AI相关13D/13G</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="signal-row">
+      <div class="signal-icon">🚀</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-manual">人工订阅</span>
+          Crunchbase / 36氪融资快讯
+        </div>
+        <div class="signal-desc">
+          Crunchbase免费版有24小时延迟，但覆盖全球。36氪融资快讯覆盖中国早期项目。
+          两者结合可基本覆盖中美两市的种子轮至A轮信号。
+        </div>
+      </div>
+    </div>
+
+    <div class="signal-row">
+      <div class="signal-icon">🐢</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-live">季度更新</span>
+          Y Combinator 批次
+        </div>
+        <div class="signal-desc">
+          YC每年两个批次（W/S），官方公司列表在Demo Day前约2周公开。
+          YC公司的赛道分布是验证「什么方向正在被最聪明的创始人押注」的领先指标。<br>
+          <a href="https://www.ycombinator.com/companies?batch=W25" target="_blank"
+             style="color:#2563eb">→ W25批次公司列表</a>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div class="card-wrap">
-    {"".join(cards) if cards else
-     '<div style="padding:40px;text-align:center;color:#9ca3af">暂无文章</div>'}
+  <!-- ── Section 2: 机构仓位变化 ── -->
+  <div class="section">
+    <div class="section-title">🏦 机构仓位变化</div>
+    <div class="section-desc">13F季报 · 私募数据库 · 二级市场聪明钱流向</div>
+
+    <div class="signal-row">
+      <div class="signal-icon">📊</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-live">季度更新</span>
+          SEC 13F-HR (机构持仓季报)
+        </div>
+        <div class="signal-desc">
+          管理资产超1亿美元的机构须每季度披露所有股票持仓。
+          延迟45天，但对比相邻季度可发现「聪明钱」的仓位变化方向。
+          重点追踪：a16z、Tiger Global、Coatue、Dragoneer对AI标的的加减仓。<br>
+          <a href="https://efts.sec.gov/LATEST/search-index?q=%22NVIDIA%22+%22artificial+intelligence%22&forms=13F-HR"
+             target="_blank" style="color:#2563eb">→ 含AI持仓的13F搜索</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="signal-row">
+      <div class="signal-icon">💼</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-paid">付费数据库</span>
+          PitchBook — 私募交易数据库
+        </div>
+        <div class="signal-desc">
+          最全面的私募融资数据库，包含未公开轮次、估值、LP信息。
+          如您提供账号Cookie，可解析PitchBook的公司页面和融资历史。
+          支持字段：融资日期、轮次、金额、投资机构、估值（如披露）。
+        </div>
+      </div>
+    </div>
+
+    <div class="signal-row">
+      <div class="signal-icon">📉</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-paid">付费数据库</span>
+          CB Insights — 市场地图与融资追踪
+        </div>
+        <div class="signal-desc">
+          提供API接口（需API Key）。特色：市场地图（Market Map）自动分类竞争格局，
+          独角兽追踪，以及「Mosaic Score」信号（综合社交媒体、招聘、新闻的健康度评分）。
+        </div>
+      </div>
+    </div>
+
+    <div class="signal-row">
+      <div class="signal-icon">📋</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-paid">付费数据库</span>
+          Carta — 股权与期权数据
+        </div>
+        <div class="signal-desc">
+          Carta State of Private Markets报告（免费季报）提供汇总的私募市场数据。
+          如有Carta账号，可获取特定公司的409A估值和股权结构（需公司授权）。
+        </div>
+      </div>
+    </div>
   </div>
+
+  <!-- ── Section 3: 智能资本观点 ── -->
+  <div class="section">
+    <div class="section-title">🧠 智能资本观点</div>
+    <div class="section-desc">顶级VC合伙人公开撰文 · 投资论文 · 赛道判断</div>
+
+    <div class="signal-row">
+      <div class="signal-icon">🔵</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-live">RSS已接入</span>
+          a16z · Andreessen Horowitz
+        </div>
+        <div class="signal-desc">
+          AI/生物/加密三大主题。重点关注：Marc Andreessen的「Why AI Will Save the World」
+          系列续集，Ben Horowitz的企业软件论断。
+          <a href="https://a16z.com/feed/" target="_blank" style="color:#2563eb">RSS ↗</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="signal-row">
+      <div class="signal-icon">🌲</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-live">RSS已接入</span>
+          Sequoia Capital
+        </div>
+        <div class="signal-desc">
+          每年的「RIP Good Times」和「AI's $600B Question」类年度判断是重要参考。
+          <a href="https://www.sequoiacap.com/our-views/feed/" target="_blank" style="color:#2563eb">RSS ↗</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="signal-row">
+      <div class="signal-icon">⚡</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-manual">KOL已追踪</span>
+          Elad Gil · Tomasz Tunguz · Nathan Benaich
+        </div>
+        <div class="signal-desc">
+          Elad Gil（高成长公司手册作者）、Tomasz Tunguz（Theory Ventures合伙人）、
+          Nathan Benaich（Air Street Capital，年度AI报告作者）——三人的公开写作
+          代表了最有深度的VC视角，比机构官方博客更坦率。
+        </div>
+      </div>
+    </div>
+
+    <div class="signal-row">
+      <div class="signal-icon">📝</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-manual">人工追踪</span>
+          Paul Graham Essays · Sam Altman Blog
+        </div>
+        <div class="signal-desc">
+          PG的文章通常预判创业生态方向变化（如「Post-YC Founder Syndrome」）。
+          Sam Altman的博客是OpenAI战略方向的间接信号。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Section 4: 付费私募情报 ── -->
+  <div class="section">
+    <div class="section-title">🔒 付费私募情报</div>
+    <div class="section-desc">需账号或API Key · 提供后可自动解析</div>
+
+    <div class="signal-row">
+      <div class="signal-icon">📰</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-paid">付费订阅</span>
+          The Information
+        </div>
+        <div class="signal-desc">
+          硅谷最权威的付费科技新闻，独家融资/收购信息平均比TechCrunch早1-2周。
+          提供账号Cookie后可解析文章全文。价格：$399/年（个人）。
+        </div>
+      </div>
+    </div>
+
+    <div class="signal-row">
+      <div class="signal-icon">🌍</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-paid">付费订阅</span>
+          DealStreetAsia
+        </div>
+        <div class="signal-desc">
+          东南亚和中国最专业的私募报道，覆盖Pre-A至Pre-IPO阶段。
+          有限的RSS feed可免费接入（已配置）；深度报道需付费账号。
+          <a href="https://www.dealstreetasia.com/feed/" target="_blank" style="color:#2563eb">免费RSS ↗</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="signal-row">
+      <div class="signal-icon">🏔</div>
+      <div class="signal-body">
+        <div class="signal-name">
+          <span class="tag tag-paid">企业版</span>
+          Preqin · Bloomberg Terminal
+        </div>
+        <div class="signal-desc">
+          Preqin：PE/VC基金级别数据（LP承诺、基金业绩、GP信息）。
+          Bloomberg Terminal：实时私募债券发行、SPAC、大宗交易。
+          两者均需企业订阅，提供API后可接入自动拉取。
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 </body>
 </html>'''
+    return html
 
 
 @app.route('/jd/sources')
@@ -3635,6 +3965,45 @@ def jd_buzz():
                        key=lambda fn: -X_ENDORSER_WEIGHTS.get(
                            fn.replace('jd-twitter-', ''), 0))
 
+    # ── 4. Community feeds (thread platforms) ────────────────────────────
+    community_sections_html = ''
+    conn2 = sqlite3.connect(DB_PATH)
+    conn2.row_factory = sqlite3.Row
+    for cfn, (clabel, caccent, cbg, cborder) in _COMMUNITY_FEEDS.items():
+        if cfn in ('jd-lobsters-ai', 'jd-hn-showhn', 'jd-hackernews'):
+            continue  # HN shown separately
+        # Sort by engagement for engagement-sorted feeds, else by score
+        if cfn in _ENGAGEMENT_SORT_FEEDS:
+            order_col = 'CAST(raw_content AS TEXT)'  # parse at Python level
+            rows = conn2.execute("""
+                SELECT article_title, article_link, published_date,
+                       raw_content, criteria_score, criteria_reason
+                FROM articles
+                WHERE feed_name = ?
+                  AND published_date >= date('now', '-30 days')
+                ORDER BY published_date DESC
+                LIMIT 50
+            """, (cfn,)).fetchall()
+            citems = [dict(r) for r in rows]
+            citems.sort(key=lambda x: -_parse_reply_count(x.get('raw_content', '') or ''))
+        else:
+            rows = conn2.execute("""
+                SELECT article_title, article_link, published_date,
+                       raw_content, criteria_score, criteria_reason
+                FROM articles
+                WHERE feed_name = ?
+                  AND criteria_score IS NOT NULL
+                  AND published_date >= date('now', '-30 days')
+                ORDER BY criteria_score DESC
+                LIMIT 15
+            """, (cfn,)).fetchall()
+            citems = [dict(r) for r in rows]
+        if citems:
+            community_sections_html += _community_feed_section(
+                cfn, citems, clabel, caccent, cbg, cborder
+            )
+    conn2.close()
+
     # ── Build HTML ────────────────────────────────────────────────────────
 
     # KOL推荐阅读 cards
@@ -3795,6 +4164,15 @@ def jd_buzz():
     {kol_links_html}
   </div>
 
+  <!-- ── 社区热议各平台 ── -->
+  <div style="margin-bottom:32px">
+    <div style="font-size:15px;font-weight:700;color:#1a1a2e;margin-bottom:4px">🌐 社区热议各平台</div>
+    <div style="font-size:11px;color:#9ca3af;margin-bottom:12px">
+      线上讨论社区 · Reddit / HF / V2EX / 掘金 / 少数派 / Linux.do · 按热度或AI评分排序
+    </div>
+    {community_sections_html}
+  </div>
+
   <div class="two-col">
     <!-- ── HN热帖 ── -->
     <div>
@@ -3825,7 +4203,7 @@ def jd_step2():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  竞品动向 — Retail Value Chain Intelligence (刘强东10节甘蔗)
+#  产业共识 — Industry Consensus Intelligence (刘强东10节甘蔗)
 # ═══════════════════════════════════════════════════════════════════════════
 
 # Import the 10-segment definition from retail_convergence.py at runtime
@@ -3860,6 +4238,8 @@ RETAIL_CHAIN_FEEDS = {
     # Chinese retail / ecommerce media
     'jd-36kr', 'jd-36kr-ai', 'jd-36kr-funding', 'jd-36kr-global',
     'jd-ebrun', 'jd-latepost', 'jd-huxiu', 'jd-yicai',
+    # Chinese tech media (editorial, not community)
+    'jd-geekpark', 'jd-ifanr', 'jd-ruanyifeng',
     # Global / cross-border retail coverage
     'jd-krasia', 'jd-pandaily', 'jd-scmp-tech', 'jd-techinasia', 'jd-restofworld',
     # Recommendation / search research (direct product relevance)
@@ -4241,7 +4621,7 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60,
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>JD竞品动向 · 8大业务域</title>
+<title>JD产业共识 · 8大业务域</title>
 <style>
   * {{ box-sizing:border-box }}
   body {{ margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
@@ -4258,7 +4638,7 @@ def render_jd_retail(ganmie_clusters, ganmie_articles, total_clusters, days=60,
 </head>
 <body>
 <div class="header">
-  <h1>🏪 竞品与行业动向</h1>
+  <h1>🏭 产业共识</h1>
   <div class="meta">8大业务域跨来源收敛分析 · 近{days}天 · 共 {total_clusters} 个收敛聚类</div>
 </div>
 {_jd_nav("retail")}

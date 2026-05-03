@@ -35,6 +35,15 @@ $PY fulltext_fetcher.py --days 90 --limit 200
 # 3) Score with threshold 50
 $PY criteria_judge.py --threshold 50
 
+# 3a) Per-feed scoring for new sources (community + Chinese tech media)
+for FEED in \
+    jd-36kr jd-geekpark jd-ifanr jd-ruanyifeng jd-juejin-ai jd-linux-do \
+    jd-v2ex jd-sspai jd-reddit-ml jd-reddit-localllama jd-reddit-artificial \
+    jd-producthunt-ai jd-devto-ai jd-huggingface-blog \
+    jd-lobsters-ai jd-hn-showhn; do
+    $PY criteria_judge.py --feed "$FEED" 2>/dev/null || true
+done
+
 # 3.5) Multi-perspective synthesis (CTO/CEO focused)
 # Skip failures here (e.g., missing/invalid API key) so refresh still completes.
 $PY multi_perspective.py || echo "[auto] multi_perspective skipped (error)"
